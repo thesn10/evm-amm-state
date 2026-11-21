@@ -56,10 +56,10 @@
 //! Use it *alongside* cold-start (or explicit metadata) as a bulk-warming
 //! accelerator, not instead of it.
 
-use alloy_eips::BlockId;
+use crate::alloy_eips::BlockId;
 use alloy_primitives::{Address, Bytes, U256};
-use alloy_provider::Provider;
-use alloy_provider::network::AnyNetwork;
+use crate::alloy_provider::Provider;
+use crate::alloy_provider::network::AnyNetwork;
 use evm_fork_cache::bulk_storage::{StorageProgram, run_storage_program};
 use evm_fork_cache::cache::EvmCache;
 

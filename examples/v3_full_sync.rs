@@ -31,12 +31,19 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use alloy_eips::{BlockId, BlockNumberOrTag};
+use evm_amm_state::alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_primitives::{Address, U256, address};
-use alloy_provider::network::AnyNetwork;
-use alloy_provider::{Provider, RootProvider};
-use alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_provider::network::AnyNetwork;
+use evm_amm_state::alloy_provider::{Provider, RootProvider};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+#[cfg(feature = "alloy1")]
 use alloy_transport_http::Http;
+#[cfg(feature = "alloy2")]
+use alloy2_transport_http::Http;
+#[cfg(feature = "alloy1")]
+use reqwest as reqwest_client;
+#[cfg(feature = "alloy2")]
+use reqwest2 as reqwest_client;
 use anyhow::{Context, Result, anyhow};
 use evm_amm_state::adapters::storage::V3StorageLayout;
 use evm_amm_state::adapters::v3_sync::{
@@ -75,7 +82,7 @@ async fn main() -> Result<()> {
 
     // Gzip-enabled transport: sync responses are hundreds of KB of nonzero
     // storage words and compress ~3x on the wire.
-    let client = reqwest::Client::builder()
+    let client = reqwest_client::Client::builder()
         .gzip(true)
         .build()
         .context("build reqwest client")?;

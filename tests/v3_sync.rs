@@ -12,10 +12,10 @@
 use std::sync::Arc;
 
 use alloy_primitives::{Address, Bytes, U256};
-use alloy_provider::RootProvider;
-use alloy_provider::network::AnyNetwork;
-use alloy_rpc_client::RpcClient;
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_provider::RootProvider;
+use evm_amm_state::alloy_provider::network::AnyNetwork;
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_provider::mock::Asserter;
 use anyhow::{Result, anyhow};
 use evm_amm_state::adapters::storage::{
     V3StorageLayout, slipstream_tick_info_storage_keys_with_base,
@@ -27,8 +27,8 @@ use evm_amm_state::adapters::v3_sync::{
     partial_storage_entries, partial_sync_calldata,
 };
 use evm_fork_cache::cache::EvmCache;
-use revm::context::result::ExecutionResult;
-use revm::state::{AccountInfo, Bytecode};
+use evm_amm_state::revm::context::result::ExecutionResult;
+use evm_amm_state::revm::state::{AccountInfo, Bytecode};
 
 const CALLER: Address = Address::ZERO;
 const POOL: Address = Address::repeat_byte(0x33);

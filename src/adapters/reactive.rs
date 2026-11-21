@@ -2,9 +2,9 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 
-use alloy_network::Ethereum;
+use crate::alloy_network::Ethereum;
 use alloy_primitives::{Address, B256, U256};
-use alloy_rpc_types_eth::Filter;
+use crate::alloy_rpc_types_eth::Filter;
 use evm_fork_cache::reactive::{
     HandlerError, HandlerId, HandlerOutcome, HookSignal, InvalidationReason, InvalidationRequest,
     LogInterest, LogMatcher, LogRouteIndex, LogRouteKey, ReactiveContext, ReactiveEffect,
@@ -916,7 +916,7 @@ struct PoolLogMatcher {
 }
 
 impl LogMatcher for PoolLogMatcher {
-    fn matches(&self, log: &alloy_rpc_types_eth::Log) -> bool {
+    fn matches(&self, log: &crate::alloy_rpc_types_eth::Log) -> bool {
         pool_source_matches(
             &self.source,
             &self.pool,

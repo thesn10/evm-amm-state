@@ -1,14 +1,14 @@
 //! Synthetic preparation-to-event regressions over the reviewed layouts.
 
 use super::*;
-use alloy_provider::{RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_provider::{RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_provider::mock::Asserter;
 use evm_amm_state::adapters::AdapterEventError;
 use evm_amm_state::adapters::v3_sync::{V3SyncSpec, build_full_sync_program, decode_full_sync};
 use evm_fork_cache::cache::EvmCache;
-use revm::context::result::ExecutionResult;
-use revm::state::{AccountInfo, Bytecode};
+use evm_amm_state::revm::context::result::ExecutionResult;
+use evm_amm_state::revm::state::{AccountInfo, Bytecode};
 use std::sync::Arc;
 use std::time::Instant;
 

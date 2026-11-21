@@ -1,9 +1,9 @@
 //! Continuous quote-state updates through the public synchronization engine.
 use super::*;
-use alloy_provider::{RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_rpc_types_eth::Log as RpcLog;
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_provider::{RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_rpc_types_eth::Log as RpcLog;
+use evm_amm_state::alloy_provider::mock::Asserter;
 use evm_amm_state::adapters::{AdapterRegistry, AmmSyncEngine, PoolStatus};
 use evm_fork_cache::cache::EvmCache;
 use evm_fork_cache::reactive::{
@@ -173,7 +173,7 @@ pub(super) async fn setup() -> (TransitionFixture, EvmCache, AmmSyncEngine, Asse
     ] {
         cache.db_mut().insert_account_info(
             address,
-            revm::state::AccountInfo {
+            evm_amm_state::revm::state::AccountInfo {
                 code_hash: hash,
                 ..Default::default()
             },
@@ -242,7 +242,7 @@ async fn unverified_staking_runtime_is_rejected_before_mutating_quote_state() {
         let (_, mut cache, mut engine, _) = setup().await;
         cache
             .db_mut()
-            .insert_account_info(address, revm::state::AccountInfo::default());
+            .insert_account_info(address, evm_amm_state::revm::state::AccountInfo::default());
         let report = engine
             .ingest_batch(&mut cache, batch(staking_logs(true, 400), 100))
             .unwrap();

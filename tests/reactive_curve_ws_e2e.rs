@@ -28,11 +28,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::{AnyNetwork, Ethereum, TransactionBuilder};
+use evm_amm_state::alloy_eips::{BlockId, BlockNumberOrTag};
+use evm_amm_state::alloy_network::{AnyNetwork, Ethereum, TransactionBuilder};
 use alloy_primitives::{Address, B256, Bytes, U256, address, keccak256};
-use alloy_provider::{Provider, RootProvider};
-use alloy_rpc_types_eth::{Filter, Log as RpcLog, TransactionRequest};
+use evm_amm_state::alloy_provider::{Provider, RootProvider};
+use evm_amm_state::alloy_rpc_types_eth::{Filter, Log as RpcLog, TransactionRequest};
 use alloy_sol_types::SolCall;
 use anyhow::{Context, Result, anyhow};
 use evm_amm_state::adapters::{

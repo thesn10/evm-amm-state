@@ -17,10 +17,10 @@ use std::env;
 use std::sync::Arc;
 use std::time::Instant;
 
-use alloy_eips::BlockId;
-use alloy_network::AnyNetwork;
+use evm_amm_state::alloy_eips::BlockId;
+use evm_amm_state::alloy_network::AnyNetwork;
 use alloy_primitives::{Address, address};
-use alloy_provider::{Provider, RootProvider};
+use evm_amm_state::alloy_provider::{Provider, RootProvider};
 use anyhow::{Context, Result};
 use evm_amm_state::adapters::factory::derive;
 use evm_amm_state::adapters::{

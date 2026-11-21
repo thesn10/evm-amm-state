@@ -1,7 +1,7 @@
 //! Strict existing-subscription assembly. No incomplete input authorizes a read.
 
 use super::*;
-use alloy_rpc_types_eth::Filter;
+use crate::alloy_rpc_types_eth::Filter;
 use evm_fork_cache::reactive::{LogInterest, SubscriberGapPolicy, SubscriberInputBatch};
 
 pub(super) fn validate_attachment<P>(

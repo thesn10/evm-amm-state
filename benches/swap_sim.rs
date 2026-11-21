@@ -25,10 +25,10 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::AnyNetwork;
+use evm_amm_state::alloy_eips::{BlockId, BlockNumberOrTag};
+use evm_amm_state::alloy_network::AnyNetwork;
 use alloy_primitives::{Address, B256, Bytes, Log, U256, address, b256, keccak256};
-use alloy_provider::RootProvider;
+use evm_amm_state::alloy_provider::RootProvider;
 use criterion::{Criterion, black_box};
 
 use evm_amm_state::adapters::driver::AdapterDriver;

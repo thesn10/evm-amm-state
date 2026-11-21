@@ -5,13 +5,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-use alloy_eips::BlockId;
-use alloy_network::Ethereum;
+use evm_amm_state::alloy_eips::BlockId;
+use evm_amm_state::alloy_network::Ethereum;
 use alloy_primitives::{Address, B256, Bytes, Log, U256, keccak256};
-use alloy_provider::{RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_rpc_types_eth::Log as RpcLog;
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_provider::{RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_rpc_types_eth::Log as RpcLog;
+use evm_amm_state::alloy_provider::mock::Asserter;
 use evm_amm_state::adapters::{
     AdapterEventContext, AdapterRegistry, AmmAdapter, AmmPoolReactiveHandler,
     AmmReactiveRoutingContext, ConcentratedLiquidityAdapter, PoolGeneration, PoolInstanceId,
@@ -25,7 +25,7 @@ use evm_fork_cache::reactive::{
     BlockRef, ChainStatus, InputSource, ReactiveConfig, ReactiveInput, ReactiveInputBatch,
     ReactiveInputRecord, ReactiveRuntime, StateEffectQuality,
 };
-use revm::state::{AccountInfo, Bytecode};
+use evm_amm_state::revm::state::{AccountInfo, Bytecode};
 use serde_json::Value;
 
 const LOCAL_SLIPSTREAM_QUOTER: Address =

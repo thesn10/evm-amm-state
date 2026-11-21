@@ -1,8 +1,8 @@
 //! Canonical record retention is bounded and preserves the validated envelope.
 use super::*;
-use alloy_consensus::Header as ConsensusHeader;
+use crate::alloy_consensus::Header as ConsensusHeader;
 use alloy_primitives::{Address, B256, Bytes, Log, LogData};
-use alloy_rpc_types_eth::Log as RpcLog;
+use crate::alloy_rpc_types_eth::Log as RpcLog;
 use evm_fork_cache::reactive::{InputSource, ReactiveContext, ReactiveInputRecord};
 
 fn header() -> RpcHeader {

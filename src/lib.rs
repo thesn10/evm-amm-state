@@ -36,6 +36,12 @@
 // `doc_cfg` since 1.92, rust-lang/rust#138907). Inert on stable builds.
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+#[cfg(all(feature = "alloy1", feature = "alloy2"))]
+compile_error!("features `alloy1` and `alloy2` are mutually exclusive; pass `--no-default-features --features alloy2`");
+
+#[cfg(not(any(feature = "alloy1", feature = "alloy2")))]
+compile_error!("exactly one of features `alloy1` or `alloy2` must be enabled");
+
 /// Re-export of [`alloy_primitives`]: the `Address` / `U256` / `B256` / `Log`
 /// vocabulary this crate's API speaks.
 ///
@@ -52,6 +58,29 @@ pub use alloy_primitives;
 /// and the two are released in lockstep. Importing it through this re-export
 /// (`evm_amm_state::evm_fork_cache`) guarantees the versions match.
 pub use evm_fork_cache;
+pub use evm_fork_cache::{
+    alloy_consensus, alloy_eips, alloy_network, alloy_provider, alloy_pubsub, alloy_rpc_client,
+    alloy_rpc_types_eth, revm,
+};
+
+#[cfg(all(test, feature = "alloy1"))]
+pub(crate) use alloy_transport;
+#[cfg(all(test, feature = "alloy2"))]
+pub(crate) use alloy2_transport as alloy_transport;
+
+/// Total gas used by a revm [`revm::context::result::ExecutionResult`],
+/// bridging `revm 34` (`alloy1`) and `revm 38` (`alloy2`).
+#[cfg(feature = "alloy1")]
+pub(crate) fn execution_gas_used<H>(result: &revm::context::result::ExecutionResult<H>) -> u64 {
+    result.gas_used()
+}
+
+/// Total gas used by a revm [`revm::context::result::ExecutionResult`],
+/// bridging `revm 34` (`alloy1`) and `revm 38` (`alloy2`).
+#[cfg(feature = "alloy2")]
+pub(crate) fn execution_gas_used<H>(result: &revm::context::result::ExecutionResult<H>) -> u64 {
+    result.tx_gas_used()
+}
 
 // Always compiled — the adapter layer has no heavy deps.
 pub mod adapters;

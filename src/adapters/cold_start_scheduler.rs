@@ -5,8 +5,8 @@ use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use alloy_network::AnyNetwork;
-use alloy_provider::Provider;
+use crate::alloy_network::AnyNetwork;
+use crate::alloy_provider::Provider;
 use tokio::sync::{mpsc, watch};
 use tokio::task::{AbortHandle, Id, JoinSet};
 

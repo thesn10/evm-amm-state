@@ -2,7 +2,7 @@
 use super::staking::*;
 use super::*;
 use evm_fork_cache::cache::EvmCache;
-use revm::{
+use evm_amm_state::revm::{
     context::result::ExecutionResult,
     state::{AccountInfo, Bytecode},
 };

@@ -9,12 +9,12 @@
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use alloy_primitives::{Address, B256};
-use alloy_rpc_types_eth::Header;
+use crate::alloy_rpc_types_eth::Header;
 use evm_fork_cache::{
     StorageAccessList,
     cache::{EvmOverlay, EvmSnapshot},
 };
-use revm::Database;
+use crate::revm::Database;
 
 use super::{
     AmmCanonicalHeader, AmmRuntimeId, AmmStatePoint, AmmStateSnapshot, AmmStateVersion,

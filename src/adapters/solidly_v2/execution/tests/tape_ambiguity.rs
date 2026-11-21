@@ -1,11 +1,11 @@
 //! Actual reviewed bytecode, synthetic fully declared parent storage. This is
 //! evidence of the event-information boundary, not a tape-state approximation.
 use super::*;
-use alloy_provider::{RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_transport::mock::Asserter;
+use crate::alloy_provider::{RootProvider, network::AnyNetwork};
+use crate::alloy_rpc_client::RpcClient;
+use crate::alloy_transport::mock::Asserter;
 use evm_fork_cache::cache::{EvmCache, TxConfig};
-use revm::{
+use crate::revm::{
     context::result::ExecutionResult,
     state::{AccountInfo, Bytecode},
 };
@@ -109,13 +109,9 @@ fn calldata(direct: bool) -> Bytes {
 }
 
 fn success(result: ExecutionResult) -> Option<(u64, Vec<Log>, Bytes)> {
+    let gas_used = crate::execution_gas_used(&result);
     match result {
-        ExecutionResult::Success {
-            gas_used,
-            logs,
-            output,
-            ..
-        } => Some((gas_used, logs, output.into_data())),
+        ExecutionResult::Success { logs, output, .. } => Some((gas_used, logs, output.into_data())),
         _ => None,
     }
 }

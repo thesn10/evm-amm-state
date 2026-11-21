@@ -9,17 +9,17 @@ use evm_amm_state::adapters::{
 };
 
 #[cfg(feature = "live-runtime")]
-use alloy_consensus::Header as ConsensusHeader;
+use evm_amm_state::alloy_consensus::Header as ConsensusHeader;
 #[cfg(feature = "live-runtime")]
 use alloy_primitives::{Address as HeaderAddress, B256};
 #[cfg(feature = "live-runtime")]
-use alloy_provider::{RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_provider::{RootProvider, network::AnyNetwork};
 #[cfg(feature = "live-runtime")]
-use alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_rpc_client::RpcClient;
 #[cfg(feature = "live-runtime")]
-use alloy_rpc_types_eth::Header as RpcHeader;
+use evm_amm_state::alloy_rpc_types_eth::Header as RpcHeader;
 #[cfg(feature = "live-runtime")]
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_provider::mock::Asserter;
 #[cfg(feature = "live-runtime")]
 use evm_amm_state::adapters::{AmmRuntime, AmmRuntimeBaseline, AmmRuntimeConfig};
 #[cfg(feature = "live-runtime")]

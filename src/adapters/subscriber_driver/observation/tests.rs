@@ -1,6 +1,6 @@
 use super::*;
 use alloy_primitives::{Address, Bytes, Log};
-use alloy_rpc_types_eth::{Filter, Header};
+use crate::alloy_rpc_types_eth::{Filter, Header};
 use evm_fork_cache::reactive::LogInterest;
 
 fn context(source: InputSource) -> ReactiveContext {
@@ -50,7 +50,7 @@ fn interests() -> Vec<ReactiveInterest<Ethereum>> {
 fn header(ledger: &mut Ledger, block: &BlockRef) {
     let header = Header {
         hash: block.hash,
-        inner: alloy_consensus::Header {
+        inner: crate::alloy_consensus::Header {
             number: block.number,
             ..Default::default()
         },

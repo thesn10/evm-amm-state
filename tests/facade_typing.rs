@@ -2,7 +2,7 @@
 //! `anyhow` are driven out of the public surface.
 //!
 //! - `AdapterCache::call_raw` yields a crate-owned `CallOutcome` (not
-//!   `revm::ExecutionResult`), and the fallible cache methods return a crate
+//!   `evm_amm_state::revm::ExecutionResult`), and the fallible cache methods return a crate
 //!   `CacheError` (not `anyhow::Result`).
 //! - `AdapterDriver::apply_log` returns a *structured* `DriverError` carrying the
 //!   adapter's `AdapterEventError` (previously it stringified the error into an

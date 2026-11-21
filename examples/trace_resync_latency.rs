@@ -20,13 +20,20 @@ use std::env;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::{AnyNetwork, Ethereum};
+use evm_amm_state::alloy_eips::{BlockId, BlockNumberOrTag};
+use evm_amm_state::alloy_network::{AnyNetwork, Ethereum};
 use alloy_primitives::{Address, B256, address, keccak256};
-use alloy_provider::{Provider, RootProvider};
-use alloy_rpc_client::RpcClient;
-use alloy_rpc_types_eth::{Filter, Log as RpcLog};
+use evm_amm_state::alloy_provider::{Provider, RootProvider};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_rpc_types_eth::{Filter, Log as RpcLog};
+#[cfg(feature = "alloy1")]
 use alloy_transport_http::Http;
+#[cfg(feature = "alloy2")]
+use alloy2_transport_http::Http;
+#[cfg(feature = "alloy1")]
+use reqwest as reqwest_client;
+#[cfg(feature = "alloy2")]
+use reqwest2 as reqwest_client;
 use anyhow::{Context, Result, bail};
 use evm_amm_state::adapters::{
     AdapterRegistry, AmmAdapter, AmmSyncEngine, ColdStartOutcome, ColdStartPolicy, CurveAdapter,
@@ -137,7 +144,7 @@ async fn main() -> Result<()> {
 }
 
 fn provider(url: &str) -> Result<SharedProvider> {
-    let client = reqwest::Client::builder()
+    let client = reqwest_client::Client::builder()
         .gzip(true)
         .build()
         .context("build reqwest client")?;

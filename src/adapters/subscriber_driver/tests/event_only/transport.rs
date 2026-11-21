@@ -1,7 +1,7 @@
 //! Public Alloy pubsub transport boundary, with every outbound request recorded.
 use super::*;
-use alloy_pubsub::{ConnectionHandle, PubSubConnect};
-use alloy_transport::{TransportErrorKind, TransportResult};
+use crate::alloy_pubsub::{ConnectionHandle, PubSubConnect};
+use crate::alloy_transport::{TransportErrorKind, TransportResult};
 use serde_json::{Value, json};
 use std::sync::Mutex;
 use std::sync::atomic::Ordering;

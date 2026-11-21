@@ -8,7 +8,7 @@ use alloy_primitives::{Address, B256, Bytes, U256};
 use evm_fork_cache::ReadSetHydrationFailure;
 use evm_fork_cache::access_set::StorageAccessList as UpstreamStorageAccessList;
 use evm_fork_cache::cache::{EvmCache, EvmOverlay, EvmSnapshot, MissingState};
-use revm::database_interface::Database;
+use crate::revm::database_interface::Database;
 
 use super::cache::JournalAccessRecorder;
 use super::{

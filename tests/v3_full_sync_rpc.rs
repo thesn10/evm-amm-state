@@ -17,13 +17,13 @@
 
 use std::sync::Arc;
 
-use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::TransactionBuilder;
+use evm_amm_state::alloy_eips::{BlockId, BlockNumberOrTag};
+use evm_amm_state::alloy_network::TransactionBuilder;
 use alloy_primitives::aliases::U24;
 use alloy_primitives::{Address, Bytes, U256, address};
-use alloy_provider::network::AnyNetwork;
-use alloy_provider::{Provider, RootProvider};
-use alloy_rpc_types_eth::TransactionRequest;
+use evm_amm_state::alloy_provider::network::AnyNetwork;
+use evm_amm_state::alloy_provider::{Provider, RootProvider};
+use evm_amm_state::alloy_rpc_types_eth::TransactionRequest;
 use alloy_sol_types::SolCall;
 use anyhow::{Context, Result, anyhow};
 

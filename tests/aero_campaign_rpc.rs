@@ -38,12 +38,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::TransactionBuilder;
+use evm_amm_state::alloy_eips::{BlockId, BlockNumberOrTag};
+use evm_amm_state::alloy_network::TransactionBuilder;
 use alloy_primitives::{Address, B256, Bytes, U256, address, b256};
-use alloy_provider::{Provider, RootProvider, network::AnyNetwork};
-use alloy_rpc_types_eth::state::{AccountOverride, StateOverride, StateOverridesBuilder};
-use alloy_rpc_types_eth::{Filter, Log as RpcLog, TransactionRequest};
+use evm_amm_state::alloy_provider::{Provider, RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_rpc_types_eth::state::{AccountOverride, StateOverride, StateOverridesBuilder};
+use evm_amm_state::alloy_rpc_types_eth::{Filter, Log as RpcLog, TransactionRequest};
 use alloy_sol_types::{SolCall, SolEvent};
 use anyhow::{Context, Result, anyhow, ensure};
 use serde_json::{Value, json};
@@ -175,10 +175,12 @@ use aero_rpc::{derived_url, eth_url};
 /// An HTTP provider that backs off and retries on rate limits and transient
 /// transport errors (a long campaign issues tens of thousands of requests).
 fn connect(url: &str) -> Result<RootProvider<AnyNetwork>> {
-    let client = alloy_rpc_client::ClientBuilder::default()
-        .layer(alloy_transport::layers::RetryBackoffLayer::new(
-            12, 400, 500,
-        ))
+    #[cfg(feature = "alloy1")]
+    use alloy_transport::layers::RetryBackoffLayer;
+    #[cfg(feature = "alloy2")]
+    use alloy2_transport::layers::RetryBackoffLayer;
+    let client = evm_amm_state::alloy_rpc_client::ClientBuilder::default()
+        .layer(RetryBackoffLayer::new(12, 400, 500))
         .http(url.parse().context("parse RPC url")?);
     Ok(RootProvider::<AnyNetwork>::new(client))
 }

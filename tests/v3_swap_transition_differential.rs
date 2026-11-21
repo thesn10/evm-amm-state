@@ -13,9 +13,9 @@ use std::{
 };
 
 use alloy_primitives::{Address, B256, Bytes, Log, U256, address, b256, hex, keccak256};
-use alloy_provider::{RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_provider::{RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_provider::mock::Asserter;
 use anyhow::{Result, anyhow};
 use evm_amm_state::adapters::storage::{
     V3StorageLayout, v3_tick_bitmap_storage_key_with_base, v3_tick_info_storage_keys_with_base,
@@ -26,7 +26,7 @@ use evm_amm_state::adapters::{
     V3Metadata, uniswap_v3_code_seed, uniswap_v3_max_liquidity_per_tick,
 };
 use evm_fork_cache::cache::EvmCache;
-use revm::{
+use evm_amm_state::revm::{
     context::result::ExecutionResult,
     state::{AccountInfo, Bytecode},
 };
@@ -1147,7 +1147,7 @@ fn historical_plasma_trace(fixture: &str) -> Result<()> {
     expected
         .0
         .extend(storage(&fixture["pool_diff"]["post"]["storage"]));
-    let log: alloy_rpc_types_eth::Log = serde_json::from_value(fixture["log"].clone())?;
+    let log: evm_amm_state::alloy_rpc_types_eth::Log = serde_json::from_value(fixture["log"].clone())?;
     let identity = &fixture["reference"];
     let context = AdapterEventContext::for_block(
         identity["block_number"].as_u64().unwrap(),

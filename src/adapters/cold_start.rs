@@ -22,7 +22,7 @@
 //! on-chain zero and a transient archive miss become *distinguishable* repairs.
 
 #[cfg(feature = "live-runtime")]
-use alloy_eips::BlockId;
+use crate::alloy_eips::BlockId;
 #[cfg(feature = "live-runtime")]
 use alloy_primitives::keccak256;
 use alloy_primitives::{Address, B256, Bytes, U256};
@@ -923,7 +923,7 @@ pub(crate) async fn prepare_one_shot_pool<P>(
     provider: &P,
 ) -> Result<AmmPreparedPoolState, PreparedColdStartError>
 where
-    P: alloy_provider::Provider<alloy_network::AnyNetwork> + Clone + Send + Sync + 'static,
+    P: crate::alloy_provider::Provider<crate::alloy_network::AnyNetwork> + Clone + Send + Sync + 'static,
 {
     prepare_pool_from_view(
         registry,
@@ -1085,7 +1085,7 @@ pub(crate) async fn prepare_fast_pool<P>(
     account_fetcher: Option<&AccountProofRoundFetcher>,
 ) -> Result<Option<AmmPreparedPoolState>, PreparedColdStartError>
 where
-    P: alloy_provider::Provider<alloy_network::AnyNetwork>,
+    P: crate::alloy_provider::Provider<crate::alloy_network::AnyNetwork>,
 {
     let Some(adapter) = registry.adapter(pool.protocol()).cloned() else {
         return Ok(None);
@@ -1151,7 +1151,7 @@ async fn prepare_verified_code_target<P>(
     expected_runtime_code_hash: Option<B256>,
 ) -> Result<PreparedAccountValue, PreparedColdStartError>
 where
-    P: alloy_provider::Provider<alloy_network::AnyNetwork>,
+    P: crate::alloy_provider::Provider<crate::alloy_network::AnyNetwork>,
 {
     let block = BlockId::from((baseline.block_hash(), Some(true)));
     let mut attempt = 0u32;
@@ -1209,7 +1209,7 @@ pub(crate) async fn prepare_verified_code_targets<P>(
     provider: &P,
 ) -> Result<Vec<PreparedAccountValue>, PreparedColdStartError>
 where
-    P: alloy_provider::Provider<alloy_network::AnyNetwork>,
+    P: crate::alloy_provider::Provider<crate::alloy_network::AnyNetwork>,
 {
     let identities = adapter.reviewed_code_identities(pool);
     let mut values = Vec::new();
@@ -1257,7 +1257,7 @@ pub(crate) async fn prepare_pool_from_view<P>(
     config: ResumableColdStartConfig,
 ) -> Result<AmmPreparedPoolState, PreparedColdStartError>
 where
-    P: alloy_provider::Provider<alloy_network::AnyNetwork> + Send + Sync + 'static,
+    P: crate::alloy_provider::Provider<crate::alloy_network::AnyNetwork> + Send + Sync + 'static,
 {
     let storage_fetcher = StorageRoundFetcher::from_provider(
         Arc::clone(&provider),
@@ -1871,7 +1871,7 @@ impl AdapterRegistry {
         policy: ColdStartPolicy,
     ) -> Result<Vec<ColdStartOutcome>, ColdStartError>
     where
-        P: alloy_provider::Provider<alloy_network::AnyNetwork>,
+        P: crate::alloy_provider::Provider<crate::alloy_network::AnyNetwork>,
     {
         if pools.is_empty() {
             return Ok(Vec::new());
@@ -2383,10 +2383,10 @@ mod hydration_tests {
         UniswapV2Adapter, UniswapV2Metadata,
     };
     use alloy_primitives::{Address, B256};
-    use alloy_provider::RootProvider;
-    use alloy_provider::network::AnyNetwork;
-    use alloy_rpc_client::RpcClient;
-    use alloy_transport::mock::Asserter;
+    use crate::alloy_provider::RootProvider;
+    use crate::alloy_provider::network::AnyNetwork;
+    use crate::alloy_rpc_client::RpcClient;
+    use crate::alloy_transport::mock::Asserter;
     use evm_fork_cache::StorageFetchError;
     use evm_fork_cache::cold_start::StorageRoundFetcher;
     use std::collections::HashMap;

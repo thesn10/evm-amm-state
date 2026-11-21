@@ -1,7 +1,7 @@
 //! Bounded, exact-block NFT evidence reads before canonical publication.
 use super::{RUNTIMES, StakingFamily, StakingRuntime, abi, aero_abi, canonical_event};
 use alloy_primitives::{B256, U256};
-use alloy_rpc_types_eth::{Filter, Log};
+use crate::alloy_rpc_types_eth::{Filter, Log};
 use alloy_sol_types::SolEvent;
 use std::collections::BTreeSet;
 

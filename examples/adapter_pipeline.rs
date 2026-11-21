@@ -27,11 +27,11 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::AnyNetwork;
+use evm_amm_state::alloy_eips::{BlockId, BlockNumberOrTag};
+use evm_amm_state::alloy_network::AnyNetwork;
 use alloy_primitives::{Address, U256, address, keccak256};
-use alloy_provider::{Provider, RootProvider};
-use alloy_rpc_types_eth::{Filter, Log as RpcLog};
+use evm_amm_state::alloy_provider::{Provider, RootProvider};
+use evm_amm_state::alloy_rpc_types_eth::{Filter, Log as RpcLog};
 use anyhow::{Context, Result, anyhow};
 use evm_amm_state::adapters::storage::V2_RESERVES_SLOT;
 use evm_amm_state::adapters::{

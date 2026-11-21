@@ -5,11 +5,11 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use alloy_eips::BlockId;
+use evm_amm_state::alloy_eips::BlockId;
 use alloy_primitives::{Address, Bytes, U256, address, hex};
-use alloy_provider::{RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_provider::{RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_provider::mock::Asserter;
 use anyhow::Result;
 use evm_amm_state::adapters::storage::SolidlyStorageLayout;
 use evm_amm_state::adapters::{
@@ -18,7 +18,7 @@ use evm_amm_state::adapters::{
     SolidlyV2Metadata, UnsupportedReason,
 };
 use evm_fork_cache::cache::{EvmCache, StorageBatchFetchFn};
-use revm::state::{AccountInfo, Bytecode};
+use evm_amm_state::revm::state::{AccountInfo, Bytecode};
 
 const POOL: Address = address!("00000000000000000000000000000000000000a1");
 const TOKEN0: Address = address!("0000000000000000000000000000000000000001");

@@ -1,6 +1,6 @@
 //! Exact canonical reads with bounded parallelism and deterministic merging.
 use super::*;
-use alloy_rpc_types_eth::Filter;
+use crate::alloy_rpc_types_eth::Filter;
 use futures::{StreamExt, stream};
 
 impl<P> AlloyAmmSubscriberDriver<P>

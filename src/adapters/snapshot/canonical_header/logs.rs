@@ -1,5 +1,5 @@
 //! Bounded retention of the already validated canonical input records.
-use alloy_rpc_types_eth::Log;
+use crate::alloy_rpc_types_eth::Log;
 
 pub(crate) const MAX_LOGS: usize = 4_096;
 pub(crate) const MAX_BYTES: usize = 2 * 1024 * 1024;

@@ -21,10 +21,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use alloy_eips::BlockId;
+use evm_amm_state::alloy_eips::BlockId;
 use alloy_primitives::{Address, B256, U256, address};
-use alloy_provider::{Provider, RootProvider, network::AnyNetwork};
-use alloy_rpc_types_eth::Filter;
+use evm_amm_state::alloy_provider::{Provider, RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_rpc_types_eth::Filter;
 use anyhow::Result;
 use evm_amm_state::adapters::driver::AdapterDriver;
 use evm_amm_state::adapters::{

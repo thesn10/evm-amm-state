@@ -13,13 +13,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use alloy_eips::BlockId;
-use alloy_network::Ethereum;
+use evm_amm_state::alloy_eips::BlockId;
+use evm_amm_state::alloy_network::Ethereum;
 use alloy_primitives::{Address, B256, Bytes, Log as PrimitiveLog, U256, hex, keccak256};
-use alloy_provider::{RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_rpc_types_eth::Log as RpcLog;
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_provider::{RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_rpc_types_eth::Log as RpcLog;
+use evm_amm_state::alloy_provider::mock::Asserter;
 use anyhow::Result;
 
 use evm_amm_state::adapters::storage::SolidlyStorageLayout;
@@ -34,7 +34,7 @@ use evm_fork_cache::reactive::{
     BlockRef, ChainStatus, InputSource, ReactiveConfig, ReactiveContext, ReactiveInput,
     ReactiveInputBatch, ReactiveInputRecord, ReactiveRuntime,
 };
-use revm::state::{AccountInfo, Bytecode};
+use evm_amm_state::revm::state::{AccountInfo, Bytecode};
 
 // --- offline cache scaffolding (mirrors cold_start_adoption.rs) ---
 

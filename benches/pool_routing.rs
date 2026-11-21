@@ -6,9 +6,9 @@
 
 use std::sync::Arc;
 
-use alloy_network::Ethereum;
+use evm_amm_state::alloy_network::Ethereum;
 use alloy_primitives::{Address, B256, Bytes, Log as PrimitiveLog, keccak256};
-use alloy_rpc_types_eth::Log as RpcLog;
+use evm_amm_state::alloy_rpc_types_eth::Log as RpcLog;
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use evm_amm_state::adapters::{
     AdapterRegistry, AmmAdapter, AmmPoolReactiveHandler, AmmReactiveHandler,

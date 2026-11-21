@@ -478,7 +478,7 @@ impl SlipstreamStakingBatch {
     pub fn from_block_logs<'a>(
         pool: Address,
         block: StakingBlockRef,
-        logs: impl IntoIterator<Item = &'a alloy_rpc_types_eth::Log>,
+        logs: impl IntoIterator<Item = &'a crate::alloy_rpc_types_eth::Log>,
         snapshot: &evm_fork_cache::EvmSnapshot,
     ) -> Self {
         let output = Self::default();

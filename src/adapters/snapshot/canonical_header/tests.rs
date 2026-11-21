@@ -3,11 +3,11 @@ use crate::adapters::{
     AdapterRegistry, AmmChangeSet, AmmRuntime, AmmRuntimeBaseline, AmmRuntimeConfig,
     AmmStateCommit, AmmStateQuality,
 };
-use alloy_consensus::Header as ConsensusHeader;
+use crate::alloy_consensus::Header as ConsensusHeader;
 use alloy_primitives::B256;
-use alloy_provider::{RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_transport::mock::Asserter;
+use crate::alloy_provider::{RootProvider, network::AnyNetwork};
+use crate::alloy_rpc_client::RpcClient;
+use crate::alloy_transport::mock::Asserter;
 use evm_fork_cache::EvmCache;
 use std::sync::Arc;
 

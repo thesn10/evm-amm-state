@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt;
 use std::sync::Arc;
 
-use alloy_network::Ethereum;
+use crate::alloy_network::Ethereum;
 use alloy_primitives::{Address, U256};
 use evm_fork_cache::cache::EvmCache;
 use evm_fork_cache::reactive::{
@@ -3166,12 +3166,12 @@ fn should_recover(
 mod tests {
     use std::sync::Arc;
 
-    use alloy_network::Ethereum;
+    use crate::alloy_network::Ethereum;
     use alloy_primitives::{B256, Bytes, Log as PrimitiveLog};
-    use alloy_provider::{RootProvider, network::AnyNetwork};
-    use alloy_rpc_client::RpcClient;
-    use alloy_rpc_types_eth::{Filter, Log as RpcLog};
-    use alloy_transport::mock::Asserter;
+    use crate::alloy_provider::{RootProvider, network::AnyNetwork};
+    use crate::alloy_rpc_client::RpcClient;
+    use crate::alloy_rpc_types_eth::{Filter, Log as RpcLog};
+    use crate::alloy_transport::mock::Asserter;
     use evm_fork_cache::reactive::{
         BlockRef, ChainStatus, HandlerError, HandlerOutcome, InputSource, LogInterest,
         ReactiveContext, ReactiveEffect, ReactiveError, ReactiveHandler, ReactiveInput,

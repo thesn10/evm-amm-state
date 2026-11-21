@@ -9,14 +9,23 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
-use alloy_consensus::Header as ConsensusHeader;
+use evm_amm_state::alloy_consensus::Header as ConsensusHeader;
+#[cfg(feature = "alloy1")]
 use alloy_json_rpc::{RequestPacket, ResponsePacket};
+#[cfg(feature = "alloy2")]
+use alloy2_json_rpc::{RequestPacket, ResponsePacket};
 use alloy_primitives::{Address, B256, U256};
-use alloy_provider::{RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_rpc_types_eth::{EIP1186AccountProofResponse, Header as RpcHeader};
+use evm_amm_state::alloy_provider::{RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_rpc_types_eth::{EIP1186AccountProofResponse, Header as RpcHeader};
+#[cfg(feature = "alloy1")]
 use alloy_transport::mock::{Asserter, MockTransport};
+#[cfg(feature = "alloy1")]
 use alloy_transport::{TransportError, TransportFut};
+#[cfg(feature = "alloy2")]
+use alloy2_transport::mock::{Asserter, MockTransport};
+#[cfg(feature = "alloy2")]
+use alloy2_transport::{TransportError, TransportFut};
 use criterion::{Criterion, criterion_group, criterion_main};
 use evm_amm_state::adapters::{
     AdapterRegistry, AmmCanonicalBatch, AmmColdStartOptions, AmmColdStartWorkerConfig, AmmRuntime,

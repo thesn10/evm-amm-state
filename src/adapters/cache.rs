@@ -59,17 +59,16 @@ impl CallOutcome {
     }
 }
 
-impl From<revm::context::result::ExecutionResult> for CallOutcome {
-    fn from(result: revm::context::result::ExecutionResult) -> Self {
-        use revm::context::result::ExecutionResult;
+impl From<crate::revm::context::result::ExecutionResult> for CallOutcome {
+    fn from(result: crate::revm::context::result::ExecutionResult) -> Self {
+        use crate::revm::context::result::ExecutionResult;
+        let gas_used = crate::execution_gas_used(&result);
         match result {
-            ExecutionResult::Success {
-                output, gas_used, ..
-            } => Self::Success {
+            ExecutionResult::Success { output, .. } => Self::Success {
                 output: output.into_data(),
                 gas_used,
             },
-            ExecutionResult::Revert { gas_used, output } => Self::Revert { output, gas_used },
+            ExecutionResult::Revert { output, .. } => Self::Revert { output, gas_used },
             ExecutionResult::Halt { reason, .. } => Self::Halt {
                 reason: format!("{reason:?}"),
             },
@@ -433,11 +432,11 @@ pub fn overlay_call_raw_with_context(
     code_overrides: &[(Address, Bytes)],
     context: &CallTxContext,
 ) -> Result<CallOutcome, CacheError> {
-    use revm::ExecuteEvm;
-    use revm::context::TxEnv;
-    use revm::context_interface::JournalTr;
-    use revm::primitives::TxKind;
-    use revm::state::Bytecode;
+    use crate::revm::ExecuteEvm;
+    use crate::revm::context::TxEnv;
+    use crate::revm::context_interface::JournalTr;
+    use crate::revm::primitives::TxKind;
+    use crate::revm::state::Bytecode;
 
     if context.is_default() {
         return overlay
@@ -489,29 +488,29 @@ impl JournalAccessRecorder {
 }
 
 impl<'a>
-    revm::Inspector<
-        revm::context::Context<
-            revm::context::BlockEnv,
-            revm::context::TxEnv,
-            revm::context::CfgEnv,
+    crate::revm::Inspector<
+        crate::revm::context::Context<
+            crate::revm::context::BlockEnv,
+            crate::revm::context::TxEnv,
+            crate::revm::context::CfgEnv,
             &'a mut evm_fork_cache::cache::ForkCacheDB,
-            revm::context::Journal<&'a mut evm_fork_cache::cache::ForkCacheDB>,
+            crate::revm::context::Journal<&'a mut evm_fork_cache::cache::ForkCacheDB>,
             (),
         >,
     > for JournalAccessRecorder
 {
     fn call_end(
         &mut self,
-        context: &mut revm::context::Context<
-            revm::context::BlockEnv,
-            revm::context::TxEnv,
-            revm::context::CfgEnv,
+        context: &mut crate::revm::context::Context<
+            crate::revm::context::BlockEnv,
+            crate::revm::context::TxEnv,
+            crate::revm::context::CfgEnv,
             &'a mut evm_fork_cache::cache::ForkCacheDB,
-            revm::context::Journal<&'a mut evm_fork_cache::cache::ForkCacheDB>,
+            crate::revm::context::Journal<&'a mut evm_fork_cache::cache::ForkCacheDB>,
             (),
         >,
-        _inputs: &revm::interpreter::CallInputs,
-        _outcome: &mut revm::interpreter::CallOutcome,
+        _inputs: &crate::revm::interpreter::CallInputs,
+        _outcome: &mut crate::revm::interpreter::CallOutcome,
     ) {
         // The journal is cumulative, so the last `call_end` (the outermost
         // frame) observes every touched account and slot of the transaction.
@@ -523,7 +522,7 @@ impl<'a>
             access.accounts.insert(*address);
             let code_hash = account.info.code_hash;
             if code_hash != alloy_primitives::B256::ZERO
-                && code_hash != revm::primitives::KECCAK_EMPTY
+                && code_hash != crate::revm::primitives::KECCAK_EMPTY
             {
                 access.code_hashes.insert(code_hash);
             }

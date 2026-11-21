@@ -1,6 +1,6 @@
 //! Immutable header provenance; no protocol-specific decision or provider I/O.
 use super::AmmStatePoint;
-use alloy_rpc_types_eth::{Header, Log};
+use crate::alloy_rpc_types_eth::{Header, Log};
 use std::sync::Arc;
 
 #[cfg(feature = "live-runtime")]

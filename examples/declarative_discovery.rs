@@ -27,10 +27,10 @@
 use std::env;
 use std::sync::Arc;
 
-use alloy_eips::BlockId;
-use alloy_network::AnyNetwork;
+use evm_amm_state::alloy_eips::BlockId;
+use evm_amm_state::alloy_network::AnyNetwork;
 use alloy_primitives::{Address, U256, address};
-use alloy_provider::{Provider, RootProvider};
+use evm_amm_state::alloy_provider::{Provider, RootProvider};
 use anyhow::{Context, Result};
 use evm_amm_state::adapters::{
     AdapterRegistry, AmmSyncEngine, ColdStartOutcome, ColdStartPolicy,

@@ -19,9 +19,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::time::{Duration, Instant};
 
-use alloy_network::{Ethereum, primitives::BlockResponse as _};
-use alloy_provider::Provider;
-use alloy_rpc_types_eth::{Header as RpcHeader, Log as RpcLog};
+use crate::alloy_network::{Ethereum, primitives::BlockResponse as _};
+use crate::alloy_provider::Provider;
+use crate::alloy_rpc_types_eth::{Header as RpcHeader, Log as RpcLog};
 use evm_fork_cache::reactive::{
     AlloySubscriber, BlockInterest, BlockRef, ChainControl, ChainStatus, EventSubscriber,
     HandlerId, InputSource, PreconfirmationMode, ReactiveContext, ReactiveInput,
@@ -2297,15 +2297,15 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::SealReason;
-    use alloy_consensus::Header as ConsensusHeader;
-    use alloy_network::Ethereum;
+    use crate::alloy_consensus::Header as ConsensusHeader;
+    use crate::alloy_network::Ethereum;
     use alloy_primitives::{Address, B256, Bytes, Log as PrimitiveLog, U256, keccak256};
-    use alloy_provider::{ProviderBuilder, RootProvider, network::AnyNetwork};
-    use alloy_rpc_client::RpcClient;
-    use alloy_rpc_types_eth::{
+    use crate::alloy_provider::{ProviderBuilder, RootProvider, network::AnyNetwork};
+    use crate::alloy_rpc_client::RpcClient;
+    use crate::alloy_rpc_types_eth::{
         Block, EIP1186AccountProofResponse, Filter, Header as RpcHeader, Log as RpcLog,
     };
-    use alloy_transport::mock::Asserter;
+    use crate::alloy_transport::mock::Asserter;
     use anyhow::Result;
     use evm_fork_cache::cache::EvmCache;
     use evm_fork_cache::reactive::{
@@ -3855,7 +3855,7 @@ mod tests {
         baseline_header: RpcHeader,
         provider_filter: Filter,
     ) -> Result<(
-        AlloyAmmSubscriberDriver<impl alloy_provider::Provider<Ethereum> + Clone + 'static>,
+        AlloyAmmSubscriberDriver<impl crate::alloy_provider::Provider<Ethereum> + Clone + 'static>,
         AmmRuntimeHandle,
         Arc<AmmSubscriberDriverCounters>,
     )> {
@@ -3866,7 +3866,7 @@ mod tests {
         asserter: Asserter,
         baseline_header: RpcHeader,
     ) -> Result<(
-        AlloyAmmSubscriberDriver<impl alloy_provider::Provider<Ethereum> + Clone + 'static>,
+        AlloyAmmSubscriberDriver<impl crate::alloy_provider::Provider<Ethereum> + Clone + 'static>,
         AmmRuntimeHandle,
         Arc<AmmSubscriberDriverCounters>,
     )> {
@@ -3883,7 +3883,7 @@ mod tests {
         baseline_header: RpcHeader,
         provider_filter: Filter,
     ) -> Result<(
-        AlloyAmmSubscriberDriver<impl alloy_provider::Provider<Ethereum> + Clone + 'static>,
+        AlloyAmmSubscriberDriver<impl crate::alloy_provider::Provider<Ethereum> + Clone + 'static>,
         AmmRuntimeHandle,
         Arc<AmmSubscriberDriverCounters>,
     )> {

@@ -8,7 +8,7 @@ use std::fmt;
 use std::sync::LazyLock;
 
 use alloy_primitives::{Address, B256, Bytes, U256};
-use revm::state::Bytecode;
+use crate::revm::state::Bytecode;
 
 use super::types::V3Metadata;
 

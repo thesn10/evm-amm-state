@@ -1,5 +1,5 @@
 //! Preserve each source's predicate when coalescing exact-block reads.
-use alloy_rpc_types_eth::Filter;
+use crate::alloy_rpc_types_eth::Filter;
 use std::collections::BTreeSet;
 
 pub(super) fn reconciliation_filters(filters: &[Filter], max_addresses: usize) -> Vec<Filter> {

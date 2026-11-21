@@ -48,7 +48,7 @@ fn canonical_pool_logs_reproduce_all_declared_execution_cells_without_rpc() {
             .collect();
         let mut view = View(words);
         for encoded in frame["logs"].as_array().unwrap() {
-            let log: alloy_rpc_types_eth::Log = serde_json::from_value(encoded.clone()).unwrap();
+            let log: crate::alloy_rpc_types_eth::Log = serde_json::from_value(encoded.clone()).unwrap();
             assert_eq!(
                 log.block_hash.unwrap().to_string(),
                 frame["block_hash"].as_str().unwrap()
@@ -134,7 +134,7 @@ fn canonical_first_observation_use_matches_even_when_untouched_prewarm_cells_are
             assert_eq!(view.0.remove(&U256::from(slot)), Some(U256::ONE));
         }
         for encoded in frame["logs"].as_array().unwrap() {
-            let log: alloy_rpc_types_eth::Log = serde_json::from_value(encoded.clone()).unwrap();
+            let log: crate::alloy_rpc_types_eth::Log = serde_json::from_value(encoded.clone()).unwrap();
             if log.inner.topics()[0] != Sync::SIGNATURE_HASH {
                 continue;
             }

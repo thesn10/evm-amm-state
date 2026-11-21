@@ -8,9 +8,9 @@ use std::sync::{
 };
 
 use alloy_primitives::{Address, Bytes, U256, hex};
-use alloy_provider::{RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_provider::{RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_provider::mock::Asserter;
 use anyhow::Result;
 use evm_amm_state::adapters::{
     AdapterCache, AdapterRegistry, AmmAdapter, CustomPoolKey, PoolKey, PoolRegistration,
@@ -19,7 +19,7 @@ use evm_amm_state::adapters::{
 };
 use evm_fork_cache::cache::EvmCache;
 use evm_fork_cache::{AccountProof, ReadSetHydrationFailure};
-use revm::state::{AccountInfo, Bytecode};
+use evm_amm_state::revm::state::{AccountInfo, Bytecode};
 
 async fn setup_cache() -> EvmCache {
     let client = RpcClient::mocked(Asserter::new());
@@ -218,7 +218,7 @@ async fn learned_quotes_refresh_at_the_exact_cache_pin_and_revalidate_offline() 
                 let code_hash = if address == router {
                     router_code_hash
                 } else {
-                    revm::primitives::KECCAK_EMPTY
+                    evm_amm_state::revm::primitives::KECCAK_EMPTY
                 };
                 let values = slots
                     .into_iter()
@@ -452,7 +452,7 @@ async fn code_identity_change_invalidates_every_dependent_quote_manifest() -> Re
                         code_hash: if address == router {
                             alloy_primitives::B256::repeat_byte(0x56)
                         } else {
-                            revm::primitives::KECCAK_EMPTY
+                            evm_amm_state::revm::primitives::KECCAK_EMPTY
                         },
                         slots: slots.into_iter().map(|slot| (slot, U256::ZERO)).collect(),
                     }),

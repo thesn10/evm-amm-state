@@ -4,15 +4,24 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use alloy_consensus::Header as ConsensusHeader;
+use evm_amm_state::alloy_consensus::Header as ConsensusHeader;
+#[cfg(feature = "alloy1")]
 use alloy_json_rpc::{RequestPacket, ResponsePacket};
-use alloy_network::AnyNetwork;
+#[cfg(feature = "alloy2")]
+use alloy2_json_rpc::{RequestPacket, ResponsePacket};
+use evm_amm_state::alloy_network::AnyNetwork;
 use alloy_primitives::{Address, B256, Bytes, U256};
-use alloy_provider::RootProvider;
-use alloy_rpc_client::RpcClient;
-use alloy_rpc_types_eth::{EIP1186AccountProofResponse, Header as RpcHeader};
+use evm_amm_state::alloy_provider::RootProvider;
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_rpc_types_eth::{EIP1186AccountProofResponse, Header as RpcHeader};
+#[cfg(feature = "alloy1")]
 use alloy_transport::mock::{Asserter, MockTransport};
+#[cfg(feature = "alloy1")]
 use alloy_transport::{TransportError, TransportFut};
+#[cfg(feature = "alloy2")]
+use alloy2_transport::mock::{Asserter, MockTransport};
+#[cfg(feature = "alloy2")]
+use alloy2_transport::{TransportError, TransportFut};
 use anyhow::Result;
 use evm_amm_state::adapters::{
     AdapterRegistry, AmmColdStartOptions, AmmColdStartWorkerConfig, AmmColdStartWorkerState,

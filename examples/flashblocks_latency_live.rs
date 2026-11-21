@@ -18,13 +18,20 @@ use std::{
     time::{Duration, Instant},
 };
 
-use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::{AnyNetwork, Ethereum};
+use evm_amm_state::alloy_eips::{BlockId, BlockNumberOrTag};
+use evm_amm_state::alloy_network::{AnyNetwork, Ethereum};
 use alloy_primitives::{Address, B256, U256, address, keccak256};
-use alloy_provider::{DynProvider, Provider, RootProvider};
-use alloy_rpc_client::RpcClient;
-use alloy_rpc_types_eth::{Filter, Header};
+use evm_amm_state::alloy_provider::{DynProvider, Provider, RootProvider};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_rpc_types_eth::{Filter, Header};
+#[cfg(feature = "alloy1")]
 use alloy_transport_http::Http;
+#[cfg(feature = "alloy2")]
+use alloy2_transport_http::Http;
+#[cfg(feature = "alloy1")]
+use reqwest as reqwest_client;
+#[cfg(feature = "alloy2")]
+use reqwest2 as reqwest_client;
 use anyhow::{Context, Result, bail, ensure};
 use evm_amm_state::adapters::{
     AdapterRegistry, AmmSyncEngine, ColdStartOutcome, ColdStartPolicy,
@@ -1076,7 +1083,7 @@ fn millis(value: Duration) -> f64 {
 }
 
 fn provider(url: &str) -> Result<SharedProvider> {
-    let client = reqwest::Client::builder()
+    let client = reqwest_client::Client::builder()
         .gzip(true)
         .build()
         .context("build HTTP client")?;
@@ -1087,7 +1094,7 @@ fn provider(url: &str) -> Result<SharedProvider> {
 }
 
 fn subscriber_http_provider(url: &str) -> Result<DynProvider<Ethereum>> {
-    let client = reqwest::Client::builder()
+    let client = reqwest_client::Client::builder()
         .gzip(true)
         .build()
         .context("build subscriber HTTP client")?;
@@ -1118,8 +1125,8 @@ async fn pace_setup(pause: Duration) {
 #[cfg(test)]
 mod canonical_reconciliation_tests {
     use super::*;
-    use alloy_rpc_types_eth::{Block, Log};
-    use alloy_transport::mock::Asserter;
+    use evm_amm_state::alloy_rpc_types_eth::{Block, Log};
+    use evm_amm_state::alloy_provider::mock::Asserter;
 
     async fn fixture() -> Result<(AmmSyncEngine, EvmCache, BlockRef, Header)> {
         let provider = RootProvider::<AnyNetwork>::new(RpcClient::mocked(Asserter::new()));
@@ -1139,7 +1146,7 @@ mod canonical_reconciliation_tests {
                 .with_chain_id(1)
                 .with_chain_controls([ChainControl::CanonicalProgress(head)]),
         )?;
-        let inner = alloy_consensus::Header {
+        let inner = evm_amm_state::alloy_consensus::Header {
             number: 101,
             parent_hash: head.hash,
             timestamp: 1_012,
@@ -1158,7 +1165,7 @@ mod canonical_reconciliation_tests {
     async fn empty_hash_reconciled_block_advances_coverage() -> Result<()> {
         let (mut engine, mut cache, mut head, header) = fixture().await?;
         let asserter = Asserter::new();
-        asserter.push_success(&Some(Block::<alloy_rpc_types_eth::Transaction>::empty(
+        asserter.push_success(&Some(Block::<evm_amm_state::alloy_rpc_types_eth::Transaction>::empty(
             header.clone(),
         )));
         asserter.push_success(&Vec::<Log>::new());
@@ -1187,7 +1194,7 @@ mod canonical_reconciliation_tests {
         header.inner.parent_hash = B256::repeat_byte(9);
         header.hash = header.inner.hash_slow();
         let asserter = Asserter::new();
-        asserter.push_success(&Some(Block::<alloy_rpc_types_eth::Transaction>::empty(
+        asserter.push_success(&Some(Block::<evm_amm_state::alloy_rpc_types_eth::Transaction>::empty(
             header,
         )));
         let provider = RootProvider::<Ethereum>::new(RpcClient::mocked(asserter)).erased();
@@ -1214,7 +1221,7 @@ mod canonical_reconciliation_tests {
     async fn log_from_another_block_is_rejected_before_progress() -> Result<()> {
         let (mut engine, mut cache, mut head, header) = fixture().await?;
         let asserter = Asserter::new();
-        asserter.push_success(&Some(Block::<alloy_rpc_types_eth::Transaction>::empty(
+        asserter.push_success(&Some(Block::<evm_amm_state::alloy_rpc_types_eth::Transaction>::empty(
             header,
         )));
         asserter.push_success(&Vec::<Log>::from([Log::default()]));

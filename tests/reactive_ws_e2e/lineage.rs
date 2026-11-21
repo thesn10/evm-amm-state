@@ -10,7 +10,7 @@ pub(super) const MAX_HEADER_READS: usize = 64;
 
 #[derive(Default)]
 pub(super) struct Headers {
-    verified: HashMap<B256, alloy_rpc_types_eth::Header>,
+    verified: HashMap<B256, evm_amm_state::alloy_rpc_types_eth::Header>,
     pub(super) requests: usize,
 }
 
@@ -19,7 +19,7 @@ impl Headers {
         &mut self,
         provider: &RootProvider<AnyNetwork>,
         hash: B256,
-    ) -> Result<alloy_rpc_types_eth::Header> {
+    ) -> Result<evm_amm_state::alloy_rpc_types_eth::Header> {
         if let Some(header) = self.verified.get(&hash) {
             return Ok(header.clone());
         }
@@ -112,7 +112,7 @@ impl Headers {
     }
 }
 
-fn block_ref(header: &alloy_rpc_types_eth::Header) -> BlockRef {
+fn block_ref(header: &evm_amm_state::alloy_rpc_types_eth::Header) -> BlockRef {
     BlockRef {
         number: header.number,
         hash: header.hash,

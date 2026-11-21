@@ -13,9 +13,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use alloy_eips::BlockId;
-use alloy_network::Ethereum;
-use alloy_rpc_types_eth::Header as RpcHeader;
+use crate::alloy_eips::BlockId;
+use crate::alloy_network::Ethereum;
+use crate::alloy_rpc_types_eth::Header as RpcHeader;
 use evm_fork_cache::BlockContextError;
 use evm_fork_cache::cache::EvmCache;
 use evm_fork_cache::reactive::{
@@ -1713,7 +1713,7 @@ impl AmmRuntimeHandle {
         config: AmmColdStartWorkerConfig,
     ) -> Result<AmmColdStartWorkerHandle, AmmColdStartWorkerError>
     where
-        P: alloy_provider::Provider<alloy_network::AnyNetwork> + Clone + Send + Sync + 'static,
+        P: crate::alloy_provider::Provider<crate::alloy_network::AnyNetwork> + Clone + Send + Sync + 'static,
     {
         let (control, handle) = spawn_cold_start_worker(self.clone(), provider, config)?;
         let (response, result) = oneshot::channel();
@@ -2401,7 +2401,7 @@ impl AmmFactoryWatcherIndex {
         }
     }
 
-    fn owners_for(&self, log: &alloy_rpc_types_eth::Log) -> BTreeSet<DiscoveryOwnerId> {
+    fn owners_for(&self, log: &crate::alloy_rpc_types_eth::Log) -> BTreeSet<DiscoveryOwnerId> {
         let wildcard = self
             .wildcard_topics
             .get(&log.inner.address)

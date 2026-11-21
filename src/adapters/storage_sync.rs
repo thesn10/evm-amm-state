@@ -31,10 +31,10 @@
 
 use std::fmt;
 
-use alloy_eips::BlockId;
+use crate::alloy_eips::BlockId;
 use alloy_primitives::{Address, Bytes, U256};
-use alloy_provider::Provider;
-use alloy_provider::network::AnyNetwork;
+use crate::alloy_provider::Provider;
+use crate::alloy_provider::network::AnyNetwork;
 use evm_fork_cache::bulk_storage::{StorageProgram, run_storage_program, run_storage_programs};
 use evm_fork_cache::cache::EvmCache;
 

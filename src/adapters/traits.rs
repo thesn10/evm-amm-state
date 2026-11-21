@@ -202,7 +202,7 @@ pub trait AmmAdapter: Send + Sync {
     /// Quote targets are resolved from `config` (Uniswap V3 `QuoterV2`, Uniswap
     /// V2 `Router02`) with the Balancer vault taken from the pool's metadata.
     ///
-    /// [`ExecutionResult`]: revm::context::result::ExecutionResult
+    /// [`ExecutionResult`]: crate::revm::context::result::ExecutionResult
     ///
     /// Defaults to [`SimError::Unsupported`] for protocols without a quote impl.
     fn simulate_swap(

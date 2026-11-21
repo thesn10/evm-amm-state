@@ -1,6 +1,6 @@
 //! Conservative absence proof only. Does not choose reconciliation policy.
 use alloy_primitives::{Bloom, BloomInput};
-use alloy_rpc_types_eth::Filter;
+use crate::alloy_rpc_types_eth::Filter;
 
 pub(super) fn excludes_every_filter<'a>(
     bloom: &Bloom,

@@ -22,11 +22,11 @@
 
 use std::sync::Arc;
 
-use alloy_network::AnyNetwork;
+use evm_amm_state::alloy_network::AnyNetwork;
 use alloy_primitives::{Address, B256, Bytes, Log, U256, keccak256};
-use alloy_provider::RootProvider;
-use alloy_rpc_client::RpcClient;
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_provider::RootProvider;
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_provider::mock::Asserter;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use evm_amm_state::adapters::storage::{
     V2_RESERVES_SLOT, V3StorageLayout, v3_tick_bitmap_storage_key_with_base,

@@ -1,12 +1,12 @@
 use super::*;
 use crate::adapters::{AdapterRegistry, AdapterRegistrySnapshot, AmmOwnershipIndex};
-use alloy_consensus::Header as ConsensusHeader;
+use crate::alloy_consensus::Header as ConsensusHeader;
 use alloy_primitives::U256;
-use alloy_provider::{RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_transport::mock::Asserter;
+use crate::alloy_provider::{RootProvider, network::AnyNetwork};
+use crate::alloy_rpc_client::RpcClient;
+use crate::alloy_transport::mock::Asserter;
 use evm_fork_cache::cache::{EvmCache, EvmOverlay};
-use revm::{Database, state::AccountInfo};
+use crate::revm::{Database, state::AccountInfo};
 
 const ACCOUNT: Address = Address::repeat_byte(0x11);
 
@@ -43,7 +43,7 @@ async fn cache_with(
         .build()
         .await;
     cache.advance_block(header).unwrap();
-    cache.set_block(alloy_eips::BlockId::hash(header.hash));
+    cache.set_block(crate::alloy_eips::BlockId::hash(header.hash));
     cache.set_block_context(Some(header.number), header.base_fee_per_gas);
     cache.set_coinbase(Some(header.beneficiary));
     cache.set_prevrandao(Some(header.mix_hash));
@@ -294,7 +294,7 @@ async fn unrelated_code_and_missing_storage_cannot_expand_or_shrink_coverage() {
     let (mut owner, seed) = owner().await;
     let h = header(Some(&seed), 2);
     let state = cache_with(&h, 2, |cache| {
-        let code = revm::bytecode::Bytecode::new_raw(alloy_primitives::Bytes::from_static(&[
+        let code = crate::revm::bytecode::Bytecode::new_raw(alloy_primitives::Bytes::from_static(&[
             0x60, 0x01, 0x00,
         ]));
         cache.with_blockchain_db_mut(|db| {

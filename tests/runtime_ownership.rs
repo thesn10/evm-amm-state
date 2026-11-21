@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use alloy_network::Ethereum;
+use evm_amm_state::alloy_network::Ethereum;
 use alloy_primitives::{Address, B256, Bytes, Log as PrimitiveLog, U256};
-use alloy_provider::{RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_rpc_types_eth::Log as RpcLog;
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_provider::{RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_rpc_types_eth::Log as RpcLog;
+use evm_amm_state::alloy_provider::mock::Asserter;
 use anyhow::Result;
 use evm_amm_state::adapters::{
     AdapterEvent, AdapterEventKind, AdapterEventResult, AdapterGeneration, AdapterInstanceId,

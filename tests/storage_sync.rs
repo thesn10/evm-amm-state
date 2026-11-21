@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use alloy_primitives::{Address, B256, Bytes, U256};
-use alloy_provider::RootProvider;
-use alloy_provider::network::AnyNetwork;
-use alloy_rpc_client::RpcClient;
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_provider::RootProvider;
+use evm_amm_state::alloy_provider::network::AnyNetwork;
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_provider::mock::Asserter;
 use anyhow::{Result, anyhow};
 use evm_amm_state::adapters::storage::{
     SolidlyStorageLayout, V2_RESERVES_SLOT, V2_TOKEN0_SLOT, V2_TOKEN1_SLOT,
@@ -19,8 +19,8 @@ use evm_amm_state::adapters::{
     SolidlyV2Metadata,
 };
 use evm_fork_cache::cache::EvmCache;
-use revm::context::result::ExecutionResult;
-use revm::state::{AccountInfo, Bytecode};
+use evm_amm_state::revm::context::result::ExecutionResult;
+use evm_amm_state::revm::state::{AccountInfo, Bytecode};
 
 const CALLER: Address = Address::ZERO;
 const POOL: Address = Address::repeat_byte(0x33);

@@ -45,7 +45,7 @@ use alloy_primitives::{
 };
 use alloy_sol_types::{SolCall, SolEvent};
 use evm_fork_cache::cache::{EvmOverlay, EvmSnapshot};
-use revm::context::result::ExecutionResult;
+use crate::revm::context::result::ExecutionResult;
 use std::{collections::BTreeSet, sync::Arc};
 
 mod aero_execution;

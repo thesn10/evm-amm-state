@@ -21,9 +21,9 @@ use std::{
 };
 
 use alloy_primitives::{Address, B256, Bytes, Log, U256, address, b256, hex, keccak256};
-use alloy_provider::{RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_provider::{RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_provider::mock::Asserter;
 use anyhow::{Result, anyhow};
 use evm_amm_state::adapters::storage::{
     V3StorageLayout, v3_tick_bitmap_storage_key_with_base, v3_tick_info_storage_keys_with_base,
@@ -35,7 +35,7 @@ use evm_amm_state::adapters::{
     uniswap_v3_max_liquidity_per_tick,
 };
 use evm_fork_cache::cache::EvmCache;
-use revm::{
+use evm_amm_state::revm::{
     context::result::ExecutionResult,
     state::{AccountInfo, Bytecode},
 };

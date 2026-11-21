@@ -14,15 +14,24 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
-use alloy_consensus::Header as ConsensusHeader;
+use evm_amm_state::alloy_consensus::Header as ConsensusHeader;
+#[cfg(feature = "alloy1")]
 use alloy_json_rpc::{RequestPacket, ResponsePacket};
-use alloy_network::Ethereum;
+#[cfg(feature = "alloy2")]
+use alloy2_json_rpc::{RequestPacket, ResponsePacket};
+use evm_amm_state::alloy_network::Ethereum;
 use alloy_primitives::{Address, B256, Bytes, Log as PrimitiveLog, U256, hex, keccak256};
-use alloy_provider::{ProviderBuilder, RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_rpc_types_eth::{EIP1186AccountProofResponse, Header as RpcHeader, Log as RpcLog};
+use evm_amm_state::alloy_provider::{ProviderBuilder, RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_rpc_types_eth::{EIP1186AccountProofResponse, Header as RpcHeader, Log as RpcLog};
+#[cfg(feature = "alloy1")]
 use alloy_transport::mock::{Asserter, MockTransport};
+#[cfg(feature = "alloy1")]
 use alloy_transport::{TransportError, TransportFut};
+#[cfg(feature = "alloy2")]
+use alloy2_transport::mock::{Asserter, MockTransport};
+#[cfg(feature = "alloy2")]
+use alloy2_transport::{TransportError, TransportFut};
 use anyhow::Result;
 use evm_amm_state::adapters::storage::{
     V2_RESERVES_SLOT, V2_TOKEN0_SLOT, V2_TOKEN1_SLOT, v3_tick_bitmap_storage_key,
@@ -58,7 +67,7 @@ use evm_fork_cache::reactive::{
     InputSource, PreconfirmationMode, ProviderRef, ReactiveContext, ReactiveInput,
     ReactiveInputBatch, ReactiveInputRecord, SubscriberConfig, SubscriberMode,
 };
-use revm::{
+use evm_amm_state::revm::{
     Database,
     state::{AccountInfo, Bytecode},
 };

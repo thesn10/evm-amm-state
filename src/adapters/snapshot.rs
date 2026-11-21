@@ -607,7 +607,7 @@ impl AmmStateCommit {
     /// to 4,096 logs and 2 MiB of data/topics plus a conservative per-log
     /// metadata allowance. This retains the source's existing completeness
     /// contract; it is not a transaction-receipt trie proof or finality proof.
-    pub fn canonical_logs(&self) -> Option<&[alloy_rpc_types_eth::Log]> {
+    pub fn canonical_logs(&self) -> Option<&[crate::alloy_rpc_types_eth::Log]> {
         self.canonical_header.as_ref()?.logs()
     }
 

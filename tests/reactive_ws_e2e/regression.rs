@@ -1,7 +1,7 @@
 use super::*;
 use alloy_primitives::{B256, Log as PrimitiveLog};
-use alloy_rpc_client::RpcClient;
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_provider::mock::Asserter;
 use evm_fork_cache::{StateUpdate, reactive::ReactiveReport};
 
 fn hash(number: u64) -> B256 {
@@ -226,8 +226,8 @@ async fn disconnected_evm_records_missing_account_without_provider_fallback() ->
     Ok(())
 }
 
-fn header(number: u64, parent: B256) -> alloy_rpc_types_eth::Header {
-    alloy_rpc_types_eth::Header::new(alloy_consensus::Header {
+fn header(number: u64, parent: B256) -> evm_amm_state::alloy_rpc_types_eth::Header {
+    evm_amm_state::alloy_rpc_types_eth::Header::new(evm_amm_state::alloy_consensus::Header {
         number,
         parent_hash: parent,
         timestamp: 1_700_000_000 + number,
@@ -237,7 +237,7 @@ fn header(number: u64, parent: B256) -> alloy_rpc_types_eth::Header {
     })
 }
 
-fn header_reply(header: &alloy_rpc_types_eth::Header) -> serde_json::Value {
+fn header_reply(header: &evm_amm_state::alloy_rpc_types_eth::Header) -> serde_json::Value {
     let mut reply = serde_json::to_value(header).unwrap();
     reply["transactions"] = serde_json::json!([]);
     reply["uncles"] = serde_json::json!([]);

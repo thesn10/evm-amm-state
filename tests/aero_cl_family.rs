@@ -7,9 +7,9 @@
 use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 
 use alloy_primitives::{Address, B256, Bytes, Log, U256, address, b256, hex};
-use alloy_provider::{RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_provider::{RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_provider::mock::Asserter;
 use evm_amm_state::adapters::storage::{
     AERO_CL_OBSERVATIONS_SLOT, AERO_CL_SECONDS_PER_STAKED_LIQUIDITY_SLOT,
     AERO_CL_STAKED_LIQUIDITY_SLOT, SlipstreamLayoutFamily, V3StorageLayout,
@@ -26,7 +26,7 @@ use evm_amm_state::adapters::{
     V3Metadata, V3QuoterKind, V3SwapTransitionCapability,
 };
 use evm_fork_cache::cache::EvmCache;
-use revm::state::{AccountInfo, Bytecode};
+use evm_amm_state::revm::state::{AccountInfo, Bytecode};
 use serde_json::Value;
 
 const METAQUOTER: Address = address!("1ddfec5058180c207f55bb77d95acdd0d8227868");
@@ -378,7 +378,7 @@ fn aero_proof_for_tests(
         let provider = RootProvider::<AnyNetwork>::new(client);
         let mut cache = EvmCache::new(Arc::new(provider)).await;
         cache.set_chain_id(8_453);
-        cache.set_block(alloy_eips::BlockId::from((BLOCK_HASH, Some(true))));
+        cache.set_block(evm_amm_state::alloy_eips::BlockId::from((BLOCK_HASH, Some(true))));
         cache.set_timestamp(Some(1_792_000_000));
         cache.set_block_context(Some(1_000), Some(0));
         cache
@@ -425,7 +425,7 @@ fn evidence_proof_for_tests(identity: SlipstreamSnapshotIdentity) -> SlipstreamU
         let provider = RootProvider::<AnyNetwork>::new(client);
         let mut cache = EvmCache::new(Arc::new(provider)).await;
         cache.set_chain_id(8_453);
-        cache.set_block(alloy_eips::BlockId::from((BLOCK_HASH, Some(true))));
+        cache.set_block(evm_amm_state::alloy_eips::BlockId::from((BLOCK_HASH, Some(true))));
         cache.set_timestamp(Some(1_792_000_000));
         cache.set_block_context(Some(1_000), Some(0));
         cache
@@ -1266,7 +1266,7 @@ async fn snapshot_cache(chain_id: u64, state: &FixtureState) -> EvmCache {
     cache
 }
 
-fn fixture_v2_logs(fixture: &Value) -> Vec<alloy_rpc_types_eth::Log> {
+fn fixture_v2_logs(fixture: &Value) -> Vec<evm_amm_state::alloy_rpc_types_eth::Log> {
     let reference = &fixture["reference"];
     fixture["logs"]
         .as_array()
@@ -1283,7 +1283,7 @@ fn fixture_v2_logs(fixture: &Value) -> Vec<alloy_rpc_types_eth::Log> {
                 hex::decode(entry["data"].as_str().unwrap().trim_start_matches("0x")).unwrap(),
             );
             let address = Address::from_str(entry["address"].as_str().unwrap()).unwrap();
-            alloy_rpc_types_eth::Log {
+            evm_amm_state::alloy_rpc_types_eth::Log {
                 inner: Log::new(address, topics, data).expect("valid fixture log"),
                 block_hash: Some(
                     B256::from_str(reference["block_hash"].as_str().unwrap()).unwrap(),
@@ -1358,7 +1358,7 @@ async fn replay_fixture_v2(contents: &str) -> usize {
             logs.iter(),
             &snapshot,
         );
-    let gauge_topic = |log: &alloy_rpc_types_eth::Log, prefix: [u8; 4]| {
+    let gauge_topic = |log: &evm_amm_state::alloy_rpc_types_eth::Log, prefix: [u8; 4]| {
         log.address() == gauge
             && log
                 .topics()

@@ -5,10 +5,10 @@
 
 use std::sync::Arc;
 
-use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::AnyNetwork;
+use evm_amm_state::alloy_eips::{BlockId, BlockNumberOrTag};
+use evm_amm_state::alloy_network::AnyNetwork;
 use alloy_primitives::address;
-use alloy_provider::{Provider, RootProvider};
+use evm_amm_state::alloy_provider::{Provider, RootProvider};
 use anyhow::{Context, Result, bail, ensure};
 use evm_amm_state::adapters::{
     V3ImmutablePatchValues, uniswap_v2_pair_code_seed, uniswap_v3_code_seed,

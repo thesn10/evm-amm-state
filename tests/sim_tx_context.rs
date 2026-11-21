@@ -6,16 +6,16 @@
 use std::sync::Arc;
 
 use alloy_primitives::{Address, Bytes, U256, address, hex};
-use alloy_provider::{RootProvider, network::AnyNetwork};
-use alloy_rpc_client::RpcClient;
-use alloy_transport::mock::Asserter;
+use evm_amm_state::alloy_provider::{RootProvider, network::AnyNetwork};
+use evm_amm_state::alloy_rpc_client::RpcClient;
+use evm_amm_state::alloy_provider::mock::Asserter;
 use anyhow::Result;
 use evm_amm_state::adapters::{
     AdapterCache, CacheError, CallOutcome, CallTxContext, SimConfig, SlotChange, StateDiff,
     StateUpdate, StateView, overlay_call_raw_with_context, quote_via_call_with_config,
 };
 use evm_fork_cache::cache::{EvmCache, EvmOverlay};
-use revm::state::{AccountInfo, Bytecode};
+use evm_amm_state::revm::state::{AccountInfo, Bytecode};
 
 const ECHO: Address = address!("00000000000000000000000000000000000000e1");
 const ORIGIN: Address = address!("1111111111111111111111111111111111111111");
@@ -117,7 +117,7 @@ async fn offline_overlay_honours_context_and_overrides_together() -> Result<()> 
         .call_raw(ORIGIN, target, Bytes::new())
         .map_err(|error| anyhow::anyhow!("{error}"))?;
     assert!(
-        matches!(plain, revm::context::result::ExecutionResult::Success { ref output, .. } if output.data().is_empty()),
+        matches!(plain, evm_amm_state::revm::context::result::ExecutionResult::Success { ref output, .. } if output.data().is_empty()),
         "{plain:?}"
     );
     Ok(())

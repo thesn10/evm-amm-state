@@ -31,10 +31,10 @@
 
 use std::sync::Arc;
 
-use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::AnyNetwork;
+use evm_amm_state::alloy_eips::{BlockId, BlockNumberOrTag};
+use evm_amm_state::alloy_network::AnyNetwork;
 use alloy_primitives::{Address, U256, address};
-use alloy_provider::RootProvider;
+use evm_amm_state::alloy_provider::RootProvider;
 use anyhow::{Result, anyhow};
 
 use evm_amm_state::adapters::storage::V3StorageLayout;
