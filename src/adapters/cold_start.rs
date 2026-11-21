@@ -1203,7 +1203,7 @@ async fn fetch_code_with_retry<P>(
     block: BlockId,
 ) -> Result<Bytes, PreparedColdStartError>
 where
-    P: alloy_provider::Provider<alloy_network::AnyNetwork>,
+    P: crate::alloy_provider::Provider<crate::alloy_network::AnyNetwork>,
 {
     let mut attempt = 0usize;
     loop {
@@ -1233,7 +1233,7 @@ where
 #[cfg(feature = "live-runtime")]
 pub(crate) fn bulk_account_fields_proof_fetcher<P>(provider: Arc<P>) -> AccountProofRoundFetcher
 where
-    P: alloy_provider::Provider<alloy_network::AnyNetwork> + 'static,
+    P: crate::alloy_provider::Provider<crate::alloy_network::AnyNetwork> + 'static,
 {
     AccountProofRoundFetcher::new(Arc::new(move |requests, block| {
         let addresses: Vec<Address> = requests.iter().map(|(addr, _)| *addr).collect();
