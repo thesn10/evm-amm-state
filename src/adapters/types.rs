@@ -928,6 +928,14 @@ pub struct PoolRegistration {
     pub event_sources: Vec<EventSource>,
     /// Protocol metadata (tokens, fee, layout, discovered slots, …).
     pub metadata: ProtocolMetadata,
+    /// Explicit token list for custom or opaque registrations, in pool token order.
+    ///
+    /// Built-in protocols report their tokens through [`metadata`](Self::metadata);
+    /// custom adapters whose [`ProtocolMetadata::Custom`] payload is opaque can
+    /// populate this field (via [`with_tokens`](Self::with_tokens)) so
+    /// [`tokens`](Self::tokens) exposes their traded tokens to downstream
+    /// consumers without needing an [`AdapterRegistry`](super::AdapterRegistry).
+    pub tokens: Vec<Address>,
     /// Lifecycle status of the registration.
     pub status: PoolStatus,
 }
@@ -941,6 +949,7 @@ impl PoolRegistration {
             state_addresses: Vec::new(),
             event_sources: Vec::new(),
             metadata: ProtocolMetadata::Unknown,
+            tokens: Vec::new(),
             status: PoolStatus::Pending,
         }
     }
@@ -1003,9 +1012,16 @@ impl PoolRegistration {
     }
 
     /// The complete token set this pool trades, or `None` when it is not (yet)
-    /// known — see [`ProtocolMetadata::tokens`].
+    /// known.
+    ///
+    /// Built-in protocols derive the list from [`ProtocolMetadata::tokens`];
+    /// when metadata is opaque ([`ProtocolMetadata::Custom`] or
+    /// [`ProtocolMetadata::Unknown`]), this falls back to the explicit
+    /// [`tokens`](Self::tokens) field if non-empty.
     pub fn tokens(&self) -> Option<Vec<Address>> {
-        self.metadata.tokens()
+        self.metadata
+            .tokens()
+            .or_else(|| (!self.tokens.is_empty()).then(|| self.tokens.clone()))
     }
 
     /// The account addresses whose bytecode this pool's quote path needs resident
@@ -1088,6 +1104,15 @@ impl PoolRegistration {
         self.metadata = metadata;
         self.check_protocol_agreement()?;
         Ok(self)
+    }
+
+    /// Set the explicit traded tokens for this registration (in pool token order).
+    ///
+    /// Intended for custom adapters whose [`ProtocolMetadata::Custom`] payload is
+    /// opaque so [`tokens`](Self::tokens) can report the pool's traded tokens.
+    pub fn with_tokens(mut self, tokens: impl IntoIterator<Item = Address>) -> Self {
+        self.tokens = tokens.into_iter().collect();
+        self
     }
 
     /// Set the lifecycle status.
@@ -2490,6 +2515,31 @@ mod tests {
             PoolRegistration::new(PoolKey::UniswapV2(addr(0x02))).tokens(),
             None
         );
+    }
+
+    #[test]
+    fn pool_registration_tokens_uses_explicit_tokens_for_custom_metadata() {
+        let (a, b) = (addr(0x20), addr(0x21));
+        let key = PoolKey::Custom(CustomPoolKey::Address {
+            protocol: "erc4626",
+            address: addr(0x99),
+        });
+
+        let without_tokens = PoolRegistration::new(key.clone())
+            .with_metadata(ProtocolMetadata::Custom(Arc::new(42u8)));
+        assert_eq!(without_tokens.tokens(), None);
+
+        let with_tokens = without_tokens.with_tokens([a, b]);
+        assert_eq!(with_tokens.tokens(), Some(vec![a, b]));
+
+        // Built-in metadata takes precedence over explicit `tokens`.
+        let (c, d) = (addr(0x30), addr(0x31));
+        let builtin = PoolRegistration::new(PoolKey::UniswapV2(addr(0x03)))
+            .with_metadata(ProtocolMetadata::UniswapV2(
+                UniswapV2Metadata::default().with_token0(a).with_token1(b),
+            ))
+            .with_tokens([c, d]);
+        assert_eq!(builtin.tokens(), Some(vec![a, b]));
     }
 
     #[test]

@@ -830,6 +830,7 @@ impl TryFrom<PersistedRegistration> for PoolRegistration {
                 .map(EventSource::try_from)
                 .collect::<Result<_, _>>()?,
             metadata,
+            tokens: Vec::new(),
             status: persisted.status.into(),
         })
     }
