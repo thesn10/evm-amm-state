@@ -615,3 +615,27 @@ async fn async_discover_curve_pools_propagates_transport_errors() {
     .expect_err("transport error must propagate");
     assert!(matches!(err, DiscoveryError::Factory(_)));
 }
+
+#[tokio::test]
+async fn max_pools_per_pair_bounds_meta_registry_live_plain_pools() {
+    let service = MockRpcService {
+        book: Arc::new(populate_fixture_book()),
+    };
+    let client = RpcClient::new(service, true);
+    let provider = ProviderBuilder::new().connect_client(client);
+
+    // Fixture has 3 live plain pools (STABLE_POOL, CRYPTO_V2_POOL, CRYPTO_NG_POOL) plus
+    // META_POOL and DEAD_POOL in MetaRegistry; cap at 2 live plain pools.
+    let cfg = CurveDiscoveryConfig::ethereum_meta_registry().with_max_pools_per_pair(2);
+    let found = discover_curve_pools(
+        &provider,
+        BlockId::number(25_238_039),
+        &cfg,
+        &PoolQuery::pair(TOKEN_A, TOKEN_B),
+    )
+    .await
+    .expect("capped discovery");
+    assert_eq!(found.len(), 2);
+    assert_eq!(found[0].key, PoolKey::Curve(STABLE_POOL));
+    assert_eq!(found[1].key, PoolKey::Curve(CRYPTO_V2_POOL));
+}

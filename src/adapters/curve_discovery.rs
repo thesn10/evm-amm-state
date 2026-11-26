@@ -217,7 +217,11 @@ impl PoolFactory for CurvePoolFactory {
         if let Some(meta_registry) = self.config.meta_registry {
             let candidates =
                 cache_find_meta_registry_pools(cache, meta_registry, token_a, token_b)?;
+            let mut found_for_pair = 0usize;
             for pool in candidates {
+                if found_for_pair >= self.config.max_pools_per_pair {
+                    break;
+                }
                 if !seen.insert(pool) {
                     continue;
                 }
@@ -225,6 +229,7 @@ impl PoolFactory for CurvePoolFactory {
                     cache_inspect_pool(cache, pool, Some(meta_registry), None, None)?
                 {
                     discovered.push(found);
+                    found_for_pair += 1;
                 }
             }
         }
@@ -307,7 +312,11 @@ where
             let candidates =
                 rpc_find_meta_registry_pools(provider, block, meta_registry, token_a, token_b)
                     .await?;
+            let mut found_for_pair = 0usize;
             for pool in candidates {
+                if found_for_pair >= config.max_pools_per_pair {
+                    break;
+                }
                 if !seen.insert(pool) {
                     continue;
                 }
@@ -315,6 +324,7 @@ where
                     rpc_inspect_pool(provider, block, pool, Some(meta_registry), None, None).await?
                 {
                     discovered.push(found);
+                    found_for_pair += 1;
                 }
             }
         }
