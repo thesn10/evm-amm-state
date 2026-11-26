@@ -3724,4 +3724,219 @@ mod tests {
         assert_eq!(v3_bit_position(60, 60), 1);
         assert_eq!(v3_bit_position(120, 60), 2);
     }
+
+    use crate::adapters::cold_start::SlotOutcome;
+    use crate::adapters::sim::quoteExactInputSingleReturn;
+    use crate::adapters::{CacheError, CallOutcome};
+
+    struct EmptyState;
+    impl StateView for EmptyState {
+        fn storage(&self, _address: Address, _slot: U256) -> Option<U256> {
+            None
+        }
+    }
+
+    struct MockPancakeQuoteCache {
+        slots: std::collections::HashMap<(Address, U256), U256>,
+        return_data: Bytes,
+        recorded_overrides: Vec<(Address, Bytes)>,
+    }
+
+    impl StateView for MockPancakeQuoteCache {
+        fn storage(&self, address: Address, slot: U256) -> Option<U256> {
+            self.slots.get(&(address, slot)).copied()
+        }
+    }
+
+    impl AdapterCache for MockPancakeQuoteCache {
+        fn cached_storage(&self, address: Address, slot: U256) -> Option<U256> {
+            self.slots.get(&(address, slot)).copied()
+        }
+
+        fn apply_updates(&mut self, _updates: &[StateUpdate]) -> StateDiff {
+            StateDiff::default()
+        }
+
+        fn verify_slots(
+            &mut self,
+            _slots: &[(Address, U256)],
+        ) -> Result<Vec<SlotChange>, CacheError> {
+            Ok(Vec::new())
+        }
+
+        fn purge_storage(&mut self, _address: Address) -> StateDiff {
+            StateDiff::default()
+        }
+
+        fn purge_slots(&mut self, _address: Address, _slots: &[U256]) -> StateDiff {
+            StateDiff::default()
+        }
+
+        fn read_storage_slot(&mut self, address: Address, slot: U256) -> Result<U256, CacheError> {
+            Ok(self.slots.get(&(address, slot)).copied().unwrap_or_default())
+        }
+
+        fn call_raw(
+            &mut self,
+            _from: Address,
+            _to: Address,
+            _calldata: Bytes,
+            _commit: bool,
+        ) -> Result<CallOutcome, CacheError> {
+            Ok(CallOutcome::Success {
+                output: self.return_data.clone(),
+                gas_used: 80_000,
+            })
+        }
+
+        fn call_raw_with_code_overrides(
+            &mut self,
+            _from: Address,
+            _to: Address,
+            _calldata: Bytes,
+            code_overrides: &[(Address, Bytes)],
+            _commit: bool,
+        ) -> Result<CallOutcome, CacheError> {
+            self.recorded_overrides = code_overrides.to_vec();
+            Ok(CallOutcome::Success {
+                output: self.return_data.clone(),
+                gas_used: 80_000,
+            })
+        }
+    }
+
+    #[test]
+    fn pancake_v3_cold_start_warms_slot0_extension_globals_lm_pool_and_observation() {
+        let pool_addr = Address::repeat_byte(0x55);
+        let pool = PoolRegistration::new(PoolKey::PancakeV3(pool_addr)).with_metadata(
+            ProtocolMetadata::PancakeV3(
+                V3Metadata::default()
+                    .with_tick_spacing(50)
+                    .with_storage_layout(V3StorageLayout::pancake(50)),
+            ),
+        );
+        let adapter = ConcentratedLiquidityAdapter::default();
+        let mut planner = adapter
+            .cold_start_planner(&pool, ColdStartPolicy::Strict)
+            .expect("PancakeV3 planner");
+
+        // Round 1 must verify slot0, slot0 extension (1), fee growth (2, 3),
+        // protocol fees (4), liquidity (5), and lmPool (0x10008).
+        let round1 = planner.initial_plan(&EmptyState);
+        for slot in [0u64, 1, 2, 3, 4, 5, 65_544] {
+            assert!(
+                round1.verify.contains(&(pool_addr, U256::from(slot))),
+                "Round 1 missing PancakeV3 slot {slot:#x}"
+            );
+        }
+
+        // Round 2 must include observations[observation_index] at 9 + 7 = 16.
+        let obs_index: u16 = 7;
+        let slot0 = (U256::from(1u64) << 96) | (U256::from(obs_index) << 184);
+        let fetched = round1
+            .verify
+            .iter()
+            .map(|&(address, slot)| SlotOutcome {
+                address,
+                slot,
+                fetch: if slot == U256::ZERO {
+                    SlotFetch::Value(slot0)
+                } else {
+                    SlotFetch::Zero
+                },
+            })
+            .collect();
+        let step = planner.on_results(
+            &ColdStartResults {
+                fetched,
+                ..Default::default()
+            },
+            &EmptyState,
+        );
+        let ColdStartStep::Continue(round2) = step else {
+            panic!("expected Round 2 bitmap/observation plan");
+        };
+        assert!(
+            round2.verify.contains(&(pool_addr, U256::from(9 + 7))),
+            "Round 2 missing PancakeV3 observation slot"
+        );
+    }
+
+    #[test]
+    fn pancake_v3_offline_quote_stubs_nonzero_lm_pool_with_stop() {
+        let pool_addr = Address::repeat_byte(0x66);
+        let token_in = Address::repeat_byte(0x11);
+        let token_out = Address::repeat_byte(0x22);
+        let lm_pool = Address::repeat_byte(0x77);
+        let expected_out = U256::from(123_456u64);
+
+        let pool = PoolRegistration::new(PoolKey::PancakeV3(pool_addr)).with_metadata(
+            ProtocolMetadata::PancakeV3(
+                V3Metadata::default()
+                    .with_token0(token_in)
+                    .with_token1(token_out)
+                    .with_fee(500)
+                    .with_tick_spacing(10)
+                    .with_storage_layout(V3StorageLayout::pancake(10)),
+            ),
+        );
+        let return_data = Bytes::from(
+            quoteExactInputSingleCall::abi_encode_returns(&quoteExactInputSingleReturn {
+                amountOut: expected_out,
+                sqrtPriceX96After: alloy_primitives::U160::ZERO,
+                initializedTicksCrossed: 0,
+                gasEstimate: U256::from(80_000u64),
+            }),
+        );
+        let adapter = ConcentratedLiquidityAdapter::default();
+
+        // Active CAKE farm (`lmPool != 0`): stubbed with STOP (0x00) alongside the two tokens.
+        let mut active_cache = MockPancakeQuoteCache {
+            slots: std::collections::HashMap::from([(
+                (pool_addr, PANCAKE_V3_LM_POOL_SLOT),
+                U256::from_be_bytes(lm_pool.into_word().0),
+            )]),
+            return_data: return_data.clone(),
+            recorded_overrides: Vec::new(),
+        };
+        let quote = adapter
+            .simulate_swap(
+                &pool,
+                &mut active_cache,
+                token_in,
+                token_out,
+                U256::from(1_000_000u64),
+                &SimConfig::default(),
+            )
+            .expect("quote with active lmPool");
+        assert_eq!(quote.amount_out, expected_out);
+        assert_eq!(active_cache.recorded_overrides.len(), 3);
+        assert!(
+            active_cache
+                .recorded_overrides
+                .contains(&(lm_pool, Bytes::from_static(&[0x00])))
+        );
+
+        // No farm (`lmPool == 0`): only token_in and token_out are overridden.
+        let mut zero_cache = MockPancakeQuoteCache {
+            slots: std::collections::HashMap::from([(
+                (pool_addr, PANCAKE_V3_LM_POOL_SLOT),
+                U256::ZERO,
+            )]),
+            return_data,
+            recorded_overrides: Vec::new(),
+        };
+        let quote = adapter
+            .simulate_swap(
+                &pool,
+                &mut zero_cache,
+                token_in,
+                token_out,
+                U256::from(1_000_000u64),
+                &SimConfig::default(),
+            )
+            .expect("quote with zero lmPool");
+        assert_eq!(quote.amount_out, expected_out);
+        assert_eq!(zero_cache.recorded_overrides.len(), 2);
+    }
 }
