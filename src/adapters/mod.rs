@@ -63,6 +63,9 @@ pub(crate) mod aero_governance;
 pub mod balancer_v2;
 #[cfg(feature = "curve")]
 pub mod curve;
+/// On-chain Curve plain-pool auto-discovery via `MetaRegistry` and NG factories.
+#[cfg(feature = "curve")]
+pub mod curve_discovery;
 /// Reviewed Slipstream transaction-local staking evidence.
 #[cfg(feature = "uniswap-v3")]
 pub mod slipstream_staking;
@@ -102,6 +105,11 @@ pub use cold_start::{
 pub use cold_start_scheduler::{
     AmmColdStartOptions, AmmColdStartWorkerConfig, AmmColdStartWorkerError,
     AmmColdStartWorkerHandle, AmmColdStartWorkerState, AmmScheduledPool,
+};
+#[cfg(feature = "curve")]
+pub use curve_discovery::{
+    CurveDiscoveryConfig, CurveFactorySource, CurvePoolFactory, ETHEREUM_CURVE_META_REGISTRY,
+    discover_curve_pools,
 };
 pub use driver::{AdapterDriver, DriverError};
 #[cfg(feature = "uniswap-v2")]
