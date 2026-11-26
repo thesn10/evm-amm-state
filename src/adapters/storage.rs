@@ -34,6 +34,10 @@ pub const PANCAKE_V3_TICKS_BASE_SLOT: U256 = U256::from_limbs([6, 0, 0, 0]);
 /// Base storage slot for PancakeSwap V3 `tickBitmap` mapping.
 pub const PANCAKE_V3_TICK_BITMAP_BASE_SLOT: U256 = U256::from_limbs([7, 0, 0, 0]);
 
+/// Storage slot for PancakeSwap V3 `lmPool`, immediately after the 65,535-slot
+/// `observations` array starting at slot 9 (`9 + 65535 = 65544 = 0x10008`).
+pub const PANCAKE_V3_LM_POOL_SLOT: U256 = U256::from_limbs([65_544, 0, 0, 0]);
+
 /// Storage slot for Slipstream CL `slot0`.
 pub const SLIPSTREAM_SLOT0_SLOT: U256 = U256::from_limbs([6, 0, 0, 0]);
 
