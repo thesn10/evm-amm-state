@@ -14,9 +14,9 @@ use evm_fork_cache::cold_start::{StorageRoundFetcher, StorageRoundRequest};
 use evm_fork_cache::{StorageBatchConfig, StorageFetchStrategy};
 
 use super::cold_start::{
-    PreparedPoolFetchers, PreparedPoolJob, PreparedPoolStep, PreparedSnapshotState,
-    ResumableColdStartConfig, bulk_account_fields_proof_fetcher, prepare_fast_pool,
-    prepare_verified_code_targets,
+    DiscoverRoundFetcher, PreparedPoolFetchers, PreparedPoolJob, PreparedPoolStep,
+    PreparedSnapshotState, ResumableColdStartConfig, bulk_account_fields_proof_fetcher,
+    prepare_fast_pool, prepare_verified_code_targets,
 };
 use super::{
     AdapterRegistrySnapshot, AmmPreparedStorage, AmmRuntimeCommandError, AmmRuntimeHandle,
@@ -951,6 +951,8 @@ where
                         config.storage_batch_config,
                         config.storage_fetch_strategy,
                     );
+                    let discover_fetcher =
+                        DiscoverRoundFetcher::from_provider(Arc::clone(&provider));
                     let base = Arc::new(PreparedSnapshotState::new(job.cache));
                     match PreparedPoolJob::new(
                         job.registry.registry(),
@@ -959,7 +961,8 @@ where
                         job.policy,
                         base,
                         PreparedPoolFetchers::new(storage_fetcher, Some(account_fetcher))
-                            .with_verified_accounts(verified_accounts),
+                            .with_verified_accounts(verified_accounts)
+                            .with_discover(discover_fetcher),
                         ResumableColdStartConfig::default(),
                     ) {
                         Ok(mut prepared) => match prepared.step() {

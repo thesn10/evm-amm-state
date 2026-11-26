@@ -28,10 +28,14 @@ use alloy_primitives::keccak256;
 use alloy_primitives::{Address, B256, Bytes, U256};
 use evm_fork_cache::CacheError as UpstreamCacheError;
 #[cfg(feature = "live-runtime")]
+use evm_fork_cache::EvmOverlay;
+#[cfg(feature = "live-runtime")]
 use evm_fork_cache::bulk_storage::{
     AccountFieldsSample, fetch_account_fields_bulk, run_storage_program,
 };
 use evm_fork_cache::bulk_storage::{StorageProgram, run_storage_programs};
+#[cfg(feature = "live-runtime")]
+use evm_fork_cache::cache::AccountProof;
 use evm_fork_cache::cache::{CodeSeedState, EvmCache};
 use evm_fork_cache::cold_start::ColdStartConfig;
 #[cfg(feature = "live-runtime")]
@@ -40,8 +44,10 @@ use evm_fork_cache::cold_start::{
     PreparedAccountPatch, PreparedAccountValue, StorageRoundFetcher, StorageRoundRequest,
 };
 #[cfg(feature = "live-runtime")]
-use std::collections::BTreeMap;
+use evm_fork_cache::revm::Database as RevmDatabase;
 use std::collections::BTreeSet;
+#[cfg(feature = "live-runtime")]
+use std::collections::{BTreeMap, HashSet};
 #[cfg(feature = "live-runtime")]
 use std::sync::Arc;
 
@@ -925,7 +931,11 @@ pub(crate) async fn prepare_one_shot_pool<P>(
     provider: &P,
 ) -> Result<AmmPreparedPoolState, PreparedColdStartError>
 where
-    P: crate::alloy_provider::Provider<crate::alloy_network::AnyNetwork> + Clone + Send + Sync + 'static,
+    P: crate::alloy_provider::Provider<crate::alloy_network::AnyNetwork>
+        + Clone
+        + Send
+        + Sync
+        + 'static,
 {
     prepare_pool_from_view(
         registry,
@@ -971,6 +981,7 @@ pub(crate) enum PreparedColdStartError {
     InvalidRoundBudget,
     RoundBudgetExceeded { max_rounds: usize },
     StorageFetch(evm_fork_cache::cold_start::StorageRoundFetchError),
+    DiscoverFetch(String),
     CodeSeed(super::bytecode::BytecodeTemplateError),
     CodeProofUnavailable,
     CodeProofFetch(evm_fork_cache::cold_start::AccountProofRoundFetchError),
@@ -1002,6 +1013,7 @@ impl std::fmt::Display for PreparedColdStartError {
                 )
             }
             Self::StorageFetch(error) => write!(f, "background storage round failed: {error}"),
+            Self::DiscoverFetch(reason) => write!(f, "background discover round failed: {reason}"),
             Self::CodeSeed(error) => write!(f, "adapter code-seed rendering failed: {error}"),
             Self::CodeProofUnavailable => write!(
                 f,
@@ -1122,7 +1134,9 @@ where
         .await;
         fetched
             .into_iter()
-            .map(|(address, slot, result)| result.map(|value| (address, slot, value)).map_err(|_| ()))
+            .map(|(address, slot, result)| {
+                result.map(|value| (address, slot, value)).map_err(|_| ())
+            })
             .collect::<Result<Vec<_>, _>>()
     };
     let (fast, external_slots, verified_targets) = tokio::join!(
@@ -1471,6 +1485,7 @@ where
     })?;
     let verified_accounts =
         prepare_verified_code_targets(adapter.as_ref(), &pool, baseline, provider.as_ref()).await?;
+    let discover_fetcher = DiscoverRoundFetcher::from_provider(Arc::clone(&provider));
     prepare_resumable_pool(
         registry,
         pool,
@@ -1478,7 +1493,8 @@ where
         policy,
         base,
         PreparedPoolFetchers::new(storage_fetcher, Some(account_fetcher))
-            .with_verified_accounts(verified_accounts),
+            .with_verified_accounts(verified_accounts)
+            .with_discover(discover_fetcher),
         config,
     )
 }
@@ -1522,11 +1538,156 @@ pub(crate) enum PreparedPoolStep {
     Done(Box<AmmPreparedPoolState>),
 }
 
+/// Output of one background `accounts` + `discover` round.
+#[cfg(feature = "live-runtime")]
+pub(crate) struct DiscoverRoundOutput {
+    pub(crate) discovered: Vec<ColdStartCallResult>,
+    pub(crate) accounts: Vec<PreparedAccountValue>,
+}
+
+#[cfg(feature = "live-runtime")]
+type DiscoverFetchFn = dyn Fn(
+        AmmStatePoint,
+        &[Address],
+        &[ColdStartCall],
+    ) -> Result<DiscoverRoundOutput, PreparedColdStartError>
+    + Send
+    + Sync;
+
+/// Worker-owned handle that executes `plan.accounts` and `plan.discover` on a
+/// temporary hash-pinned [`EvmCache`], returning call traces and captured bytecode.
+#[cfg(feature = "live-runtime")]
+#[derive(Clone)]
+pub(crate) struct DiscoverRoundFetcher {
+    fetch: Arc<DiscoverFetchFn>,
+}
+
+#[cfg(feature = "live-runtime")]
+impl DiscoverRoundFetcher {
+    pub(crate) fn new<F>(fetch: F) -> Self
+    where
+        F: Fn(
+                AmmStatePoint,
+                &[Address],
+                &[ColdStartCall],
+            ) -> Result<DiscoverRoundOutput, PreparedColdStartError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        Self {
+            fetch: Arc::new(fetch),
+        }
+    }
+
+    pub(crate) fn from_provider<P>(provider: Arc<P>) -> Self
+    where
+        P: crate::alloy_provider::Provider<crate::alloy_network::AnyNetwork>
+            + Send
+            + Sync
+            + 'static,
+    {
+        Self::new(move |baseline, accounts, calls| {
+            let provider = Arc::clone(&provider);
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current()
+                    .block_on(execute_discover_round(provider, baseline, accounts, calls))
+            })
+        })
+    }
+
+    fn fetch(
+        &self,
+        baseline: AmmStatePoint,
+        accounts: &[Address],
+        calls: &[ColdStartCall],
+    ) -> Result<DiscoverRoundOutput, PreparedColdStartError> {
+        (self.fetch)(baseline, accounts, calls)
+    }
+}
+
+#[cfg(feature = "live-runtime")]
+async fn execute_discover_round<P>(
+    provider: Arc<P>,
+    baseline: AmmStatePoint,
+    accounts: &[Address],
+    calls: &[ColdStartCall],
+) -> Result<DiscoverRoundOutput, PreparedColdStartError>
+where
+    P: crate::alloy_provider::Provider<crate::alloy_network::AnyNetwork> + Send + Sync + 'static,
+{
+    let block = BlockId::from((baseline.block_hash(), Some(true)));
+    let mut cache = EvmCache::builder(provider)
+        .block(block)
+        .chain_id(baseline.chain_id())
+        .build()
+        .await;
+
+    let mut touched: BTreeSet<Address> = accounts.iter().copied().collect();
+    for &address in accounts {
+        cache
+            .ensure_account(address)
+            .await
+            .map_err(|error| PreparedColdStartError::DiscoverFetch(error.to_string()))?;
+    }
+
+    let mut discovered = Vec::with_capacity(calls.len());
+    for call in calls {
+        touched.insert(call.to);
+        let (result, mut access) = cache
+            .call_raw_with_access_list(call.from, call.to, call.calldata.clone())
+            .map_err(|error| PreparedColdStartError::DiscoverFetch(error.to_string()))?;
+        touched.extend(access.accounts.iter().copied());
+        touched.extend(access.slots.iter().map(|(address, _)| *address));
+        if let Some(list) = &call.restrict_to {
+            let keep: HashSet<Address> = list.iter().copied().collect();
+            access.slots.retain(|(address, _)| keep.contains(address));
+            access.accounts.retain(|address| keep.contains(address));
+        }
+        discovered.push(ColdStartCallResult {
+            result: result.into(),
+            access: access.into(),
+        });
+    }
+
+    let mut overlay = EvmOverlay::new(cache.snapshot(), None);
+    let mut captured_accounts = Vec::new();
+    for address in touched {
+        let Ok(Some(info)) = overlay.basic(address) else {
+            continue;
+        };
+        let bytecode = info
+            .code
+            .or_else(|| overlay.code_by_hash(info.code_hash).ok());
+        let Some(bytes) = bytecode.map(|code| code.original_bytes()) else {
+            continue;
+        };
+        if bytes.is_empty() {
+            continue;
+        }
+        let code_hash = keccak256(&bytes);
+        let proof = AccountProof {
+            storage_hash: B256::ZERO,
+            balance: info.balance,
+            nonce: info.nonce,
+            code_hash,
+            slots: Vec::new(),
+        };
+        captured_accounts.push(PreparedAccountValue::new(address, proof, bytes));
+    }
+
+    Ok(DiscoverRoundOutput {
+        discovered,
+        accounts: captured_accounts,
+    })
+}
+
 /// Provider handles used by one resumable pool job.
 #[cfg(feature = "live-runtime")]
 pub(crate) struct PreparedPoolFetchers {
     storage: StorageRoundFetcher,
     accounts: Option<AccountProofRoundFetcher>,
+    discover: Option<DiscoverRoundFetcher>,
     verified_accounts: Vec<PreparedAccountValue>,
 }
 
@@ -1539,6 +1700,7 @@ impl PreparedPoolFetchers {
         Self {
             storage,
             accounts,
+            discover: None,
             verified_accounts: Vec::new(),
         }
     }
@@ -1548,6 +1710,11 @@ impl PreparedPoolFetchers {
         verified_accounts: Vec<PreparedAccountValue>,
     ) -> Self {
         self.verified_accounts = verified_accounts;
+        self
+    }
+
+    pub(crate) fn with_discover(mut self, discover: DiscoverRoundFetcher) -> Self {
+        self.discover = Some(discover);
         self
     }
 }
@@ -1567,6 +1734,7 @@ pub(crate) struct PreparedPoolJob {
     policy: ColdStartPolicy,
     base: Arc<dyn StateView + Send + Sync>,
     storage_fetcher: StorageRoundFetcher,
+    discover_fetcher: Option<DiscoverRoundFetcher>,
     account_patch: PreparedAccountPatch,
     config: ResumableColdStartConfig,
     rounds: Vec<PreparedRound>,
@@ -1620,6 +1788,7 @@ impl PreparedPoolJob {
             policy,
             base,
             storage_fetcher: fetchers.storage,
+            discover_fetcher: fetchers.discover,
             account_patch,
             config,
             rounds: Vec::new(),
@@ -1664,44 +1833,63 @@ impl PreparedPoolJob {
                 }
             };
         }
-        reject_unsupported_phase(&plan)?;
+        reject_unsupported_phase(&plan, self.discover_fetcher.is_some())?;
 
-        let request = StorageRoundRequest::new(
-            self.baseline.block_hash(),
-            plan.verify.iter().copied(),
-            plan.probe.iter().copied(),
-        );
-        let (fetched, probed, patch) = self
-            .storage_fetcher
-            .fetch(&request)
-            .map_err(PreparedColdStartError::StorageFetch)?
-            .into_parts();
         let mut storage = self
             .rounds
             .last()
             .map(|round| round.storage.clone())
             .unwrap_or_default();
         let mut verified = Vec::new();
-        for value in patch.values() {
-            let address = value.address();
-            let slot = value.slot();
-            let new = value.value();
-            let old = storage
-                .get(&(address, slot))
-                .copied()
-                .or_else(|| self.base.storage(address, slot))
-                .unwrap_or(U256::ZERO);
-            if old != new {
-                verified.push(SlotChange::new(address, slot, old, new));
+        let mut fetched_outcomes = Vec::new();
+        let mut probed_outcomes = Vec::new();
+        if !plan.verify.is_empty() || !plan.probe.is_empty() {
+            let request = StorageRoundRequest::new(
+                self.baseline.block_hash(),
+                plan.verify.iter().copied(),
+                plan.probe.iter().copied(),
+            );
+            let (fetched, probed, patch) = self
+                .storage_fetcher
+                .fetch(&request)
+                .map_err(PreparedColdStartError::StorageFetch)?
+                .into_parts();
+            for value in patch.values() {
+                let address = value.address();
+                let slot = value.slot();
+                let new = value.value();
+                let old = storage
+                    .get(&(address, slot))
+                    .copied()
+                    .or_else(|| self.base.storage(address, slot))
+                    .unwrap_or(U256::ZERO);
+                if old != new {
+                    verified.push(SlotChange::new(address, slot, old, new));
+                }
+                storage.insert((address, slot), new);
+                self.accumulated.insert((address, slot), new);
             }
-            storage.insert((address, slot), new);
-            self.accumulated.insert((address, slot), new);
+            fetched_outcomes = fetched.into_iter().map(Into::into).collect();
+            probed_outcomes = probed.into_iter().map(Into::into).collect();
         }
+
+        let discovered = if !plan.accounts.is_empty() || !plan.discover.is_empty() {
+            let fetcher = self
+                .discover_fetcher
+                .as_ref()
+                .expect("reject_unsupported_phase guards discover_fetcher");
+            let output = fetcher.fetch(self.baseline, &plan.accounts, &plan.discover)?;
+            merge_prepared_accounts(&mut self.account_patch, output.accounts);
+            output.discovered
+        } else {
+            Vec::new()
+        };
+
         let results = ColdStartResults {
             verified,
-            fetched: fetched.into_iter().map(Into::into).collect(),
-            probed: probed.into_iter().map(Into::into).collect(),
-            discovered: Vec::new(),
+            fetched: fetched_outcomes,
+            probed: probed_outcomes,
+            discovered,
         };
         absorb_worker_round(&mut self.report, &plan, &results);
         self.rounds.push(PreparedRound {
@@ -1764,13 +1952,31 @@ fn same_prepared_plan(left: &ColdStartPlan, right: &ColdStartPlan) -> bool {
 }
 
 #[cfg(feature = "live-runtime")]
-fn reject_unsupported_phase(plan: &ColdStartPlan) -> Result<(), PreparedColdStartError> {
-    if !plan.accounts.is_empty() {
+fn merge_prepared_accounts(patch: &mut PreparedAccountPatch, incoming: Vec<PreparedAccountValue>) {
+    if incoming.is_empty() {
+        return;
+    }
+    let mut existing: HashSet<Address> = patch.values().iter().map(|v| v.address()).collect();
+    let mut values = patch.values().to_vec();
+    for account in incoming {
+        if existing.insert(account.address()) {
+            values.push(account);
+        }
+    }
+    *patch = PreparedAccountPatch::new(patch.block_hash(), patch.verified_at_block(), values);
+}
+
+#[cfg(feature = "live-runtime")]
+fn reject_unsupported_phase(
+    plan: &ColdStartPlan,
+    has_discover: bool,
+) -> Result<(), PreparedColdStartError> {
+    if !has_discover && !plan.accounts.is_empty() {
         return Err(PreparedColdStartError::UnsupportedPhase(
             UnsupportedPreparedPhase::Accounts,
         ));
     }
-    if !plan.discover.is_empty() {
+    if !has_discover && !plan.discover.is_empty() {
         return Err(PreparedColdStartError::UnsupportedPhase(
             UnsupportedPreparedPhase::Discover,
         ));
@@ -2570,11 +2776,11 @@ mod hydration_tests {
         AmmAdapter, CustomPoolKey, DeferredWork, PoolKey, ProtocolId, ProtocolMetadata,
         UniswapV2Adapter, UniswapV2Metadata,
     };
-    use alloy_primitives::{Address, B256};
     use crate::alloy_provider::RootProvider;
     use crate::alloy_provider::network::AnyNetwork;
     use crate::alloy_rpc_client::RpcClient;
     use crate::alloy_transport::mock::Asserter;
+    use alloy_primitives::{Address, B256};
     use evm_fork_cache::StorageFetchError;
     use evm_fork_cache::cold_start::StorageRoundFetcher;
     use std::collections::HashMap;
@@ -2924,9 +3130,20 @@ mod hydration_tests {
         ];
         for (plan, expected) in cases {
             assert!(matches!(
-                reject_unsupported_phase(&plan),
+                reject_unsupported_phase(&plan, false),
                 Err(PreparedColdStartError::UnsupportedPhase(actual)) if actual == expected
             ));
+            let with_discover = reject_unsupported_phase(&plan, true);
+            if expected == UnsupportedPreparedPhase::ProbeRoots {
+                assert!(matches!(
+                    with_discover,
+                    Err(PreparedColdStartError::UnsupportedPhase(
+                        UnsupportedPreparedPhase::ProbeRoots
+                    ))
+                ));
+            } else {
+                assert!(with_discover.is_ok());
+            }
         }
     }
 
@@ -3144,5 +3361,197 @@ mod hydration_tests {
             Err(PreparedColdStartError::RoundBudgetExceeded { max_rounds: 1 })
         ));
         assert_eq!(budget_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn discover_then_verify_background_job_captures_slots_and_bytecode() {
+        use crate::adapters::{
+            AdapterEventResult, EventSource, PoolStateDependencies, SimConfig, SimError, SwapQuote,
+        };
+
+        struct DiscoverAdapter {
+            target: Address,
+        }
+
+        impl AmmAdapter for DiscoverAdapter {
+            fn protocol(&self) -> ProtocolId {
+                ProtocolId::Custom("prepared-discover-verify")
+            }
+
+            fn event_sources(&self, _pool: &PoolRegistration) -> Vec<EventSource> {
+                Vec::new()
+            }
+
+            fn state_dependencies(&self, _pool: &PoolRegistration) -> PoolStateDependencies {
+                PoolStateDependencies::default()
+            }
+
+            fn cold_start_planner(
+                &self,
+                _pool: &PoolRegistration,
+                policy: ColdStartPolicy,
+            ) -> Result<Box<dyn AdapterColdStartPlanner>, UnsupportedReason> {
+                Ok(Box::new(DiscoverPlanner {
+                    target: self.target,
+                    policy,
+                    phase: 0,
+                    slots: Vec::new(),
+                }))
+            }
+
+            fn decode_event(
+                &self,
+                _pool: &PoolRegistration,
+                _log: &alloy_primitives::Log,
+                _state: &dyn StateView,
+            ) -> AdapterEventResult {
+                AdapterEventResult::ignored()
+            }
+
+            fn simulate_swap(
+                &self,
+                _pool: &PoolRegistration,
+                _cache: &mut dyn AdapterCache,
+                _token_in: Address,
+                _token_out: Address,
+                _amount_in: U256,
+                _config: &SimConfig,
+            ) -> Result<SwapQuote, SimError> {
+                Err(SimError::Custom("unused".into()))
+            }
+        }
+
+        struct DiscoverPlanner {
+            target: Address,
+            policy: ColdStartPolicy,
+            phase: u8,
+            slots: Vec<(Address, U256)>,
+        }
+
+        impl AdapterColdStartPlanner for DiscoverPlanner {
+            fn initial_plan(&mut self, _state: &dyn StateView) -> ColdStartPlan {
+                ColdStartPlan {
+                    accounts: vec![self.target],
+                    discover: vec![ColdStartCall::new(
+                        Address::ZERO,
+                        self.target,
+                        Bytes::from_static(&[0xaa, 0xbb]),
+                    )],
+                    ..Default::default()
+                }
+            }
+
+            fn on_results(
+                &mut self,
+                results: &ColdStartResults,
+                _state: &dyn StateView,
+            ) -> ColdStartStep {
+                if self.phase == 0 {
+                    self.phase = 1;
+                    self.slots = results.discovered[0].access.slots.clone();
+                    ColdStartStep::Continue(ColdStartPlan {
+                        verify: self.slots.clone(),
+                        ..Default::default()
+                    })
+                } else {
+                    ColdStartStep::Done
+                }
+            }
+
+            fn finish(
+                &mut self,
+                pool: &mut PoolRegistration,
+                _report: &ColdStartRunReport,
+            ) -> ColdStartOutcome {
+                pool.status = PoolStatus::Ready;
+                let mut report = ColdStartReport::new(pool.key.clone(), self.policy);
+                report.status = PoolStatus::Ready;
+                ColdStartOutcome::Ready(report)
+            }
+        }
+
+        let target = Address::repeat_byte(0x42);
+        let discovered_slot = U256::from(7u64);
+        let code = Bytes::from_static(&[0x60, 0x00, 0x60, 0x00, 0xf3]);
+        let code_hash = keccak256(&code);
+        let baseline = AmmStatePoint::post_block(1, 500, B256::repeat_byte(0x77));
+
+        let mut registry = AdapterRegistry::new();
+        registry
+            .register_adapter(Arc::new(DiscoverAdapter { target }))
+            .expect("adapter registers");
+
+        let storage_calls = Arc::new(AtomicUsize::new(0));
+        let storage_calls_ref = Arc::clone(&storage_calls);
+        let storage_fetcher = StorageRoundFetcher::new(Arc::new(move |requests, _block| {
+            storage_calls_ref.fetch_add(1, Ordering::SeqCst);
+            requests
+                .into_iter()
+                .map(|(addr, slot)| (addr, slot, Ok(U256::from(123u64))))
+                .collect()
+        }));
+
+        let code_clone = code.clone();
+        let discover_fetcher = DiscoverRoundFetcher::new(move |_baseline, accounts, calls| {
+            assert_eq!(accounts, &[target]);
+            assert_eq!(calls.len(), 1);
+            let mut access = StorageAccessList::default();
+            access.accounts.push(target);
+            access.slots.push((target, discovered_slot));
+            let proof = AccountProof {
+                storage_hash: B256::ZERO,
+                balance: U256::ZERO,
+                nonce: 1,
+                code_hash,
+                slots: Vec::new(),
+            };
+            Ok(DiscoverRoundOutput {
+                discovered: vec![ColdStartCallResult {
+                    result: CallOutcome::Success {
+                        output: Bytes::from_static(&[0x01]),
+                        gas_used: 21_000,
+                    },
+                    access,
+                }],
+                accounts: vec![PreparedAccountValue::new(target, proof, code_clone.clone())],
+            })
+        });
+
+        let pool = PoolRegistration::new(PoolKey::Custom(CustomPoolKey::Address {
+            protocol: "prepared-discover-verify",
+            address: target,
+        }));
+        let mut job = PreparedPoolJob::new(
+            &registry,
+            pool,
+            baseline,
+            ColdStartPolicy::Eager,
+            Arc::new(EmptyPreparedState),
+            PreparedPoolFetchers::new(storage_fetcher, None).with_discover(discover_fetcher),
+            ResumableColdStartConfig::default(),
+        )
+        .expect("discover job accepted");
+
+        assert!(matches!(
+            job.step().expect("discover round succeeds"),
+            PreparedPoolStep::Continue {
+                completed_rounds: 1,
+                ..
+            }
+        ));
+        assert_eq!(storage_calls.load(Ordering::SeqCst), 0);
+
+        let prepared = match job.step().expect("verify round succeeds") {
+            PreparedPoolStep::Done(prepared) => prepared,
+            PreparedPoolStep::Continue { .. } => panic!("should finish after verify round"),
+        };
+        assert_eq!(storage_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(prepared.storage().len(), 1);
+        assert_eq!(prepared.storage()[0].slot(), discovered_slot);
+        assert_eq!(prepared.storage()[0].value(), U256::from(123u64));
+        let accounts = prepared.accounts().expect("account patch present");
+        assert_eq!(accounts.values().len(), 1);
+        assert_eq!(accounts.values()[0].address(), target);
+        assert_eq!(accounts.values()[0].code(), &code);
     }
 }
