@@ -190,6 +190,10 @@ required-features = ["uniswap-v3"]
 name = "discovery_solidly"
 required-features = ["solidly-v2"]
 
+[[test]]
+name = "discovery_curve"
+required-features = ["curve"]
+
 # Live parity for the Solidly V2 (Aerodrome) preset (env-gated, #[ignore]): pins
 # the getPool base slot, storage layout, and discovery wiring against Base.
 [[test]]

@@ -32,9 +32,10 @@
 //! [`PoolDiscovery::with_factory`]:
 //! - **Balancer V2** — no on-chain token→pool index, so discovery is an async
 //!   log scan rather than a cache read.
-//! - **Curve** — its MetaRegistry `find_pools_for_coins` view reverts against a
-//!   live node, so ViewCall discovery is not built in. The Curve *adapter* still
-//!   simulates explicitly-registered Curve pools.
+//!
+//! **Curve** discovery is view-call-based (via `MetaRegistry` and/or NG
+//! factories) rather than derived-slot-based: see [`super::curve_discovery`]
+//! ([`super::CurvePoolFactory`] and [`super::discover_curve_pools`]).
 
 use std::collections::HashMap;
 use std::fmt;
@@ -50,6 +51,8 @@ use super::aero_cl_pool::{
     AERO_CL_GET_POOL_BASE_SLOT, AERO_CL_METAQUOTER, AERO_CL_POOL_GAUGE_SLOT,
     AERO_CL_POOL_INIT_CODE_HASH, AERO_CL_TICK_SPACINGS,
 };
+#[cfg(feature = "curve")]
+use super::curve_discovery::CurveDiscoveryConfig;
 use super::{AdapterCache, AdapterRegistry, EventSource, PoolKey, PoolRegistration, ProtocolId};
 #[cfg(feature = "uniswap-v3")]
 use super::{V3Metadata, V3QuoterKind};
@@ -467,6 +470,16 @@ impl PoolQuery {
         self.protocol = Some(protocol);
         self
     }
+
+    /// Normalized, de-duplicated `(token0, token1)` pairs in this query.
+    pub fn pairs_slice(&self) -> &[(Address, Address)] {
+        &self.pairs
+    }
+
+    /// Optional protocol restriction on this query.
+    pub const fn protocol(&self) -> Option<ProtocolId> {
+        self.protocol
+    }
 }
 
 /// Immutable connector-focused discovery request for one token.
@@ -586,6 +599,11 @@ pub struct FactoryConfig {
     /// per config.
     #[cfg(feature = "solidly-v2")]
     pub solidly: Vec<SolidlyFactoryConfig>,
+    /// Curve discovery sources (`MetaRegistry` and/or NG factories). Every
+    /// non-empty [`CurveDiscoveryConfig`] produces a [`super::CurvePoolFactory`]
+    /// from [`super::curve::CurveAdapter`].
+    #[cfg(feature = "curve")]
+    pub curve: Vec<CurveDiscoveryConfig>,
     /// Global switch for the CREATE2 cross-check: a spec's derivation
     /// verification runs only when both this and the spec opt in. Defaults `true`.
     pub verify_derivations: bool,
@@ -600,6 +618,8 @@ impl Default for FactoryConfig {
             concentrated_liquidity: Vec::new(),
             #[cfg(feature = "solidly-v2")]
             solidly: Vec::new(),
+            #[cfg(feature = "curve")]
+            curve: Vec::new(),
             verify_derivations: true,
         }
     }
@@ -653,6 +673,13 @@ impl FactoryConfig {
     #[cfg(feature = "uniswap-v3")]
     pub fn with_slipstream_factory(self, factory: Address) -> Self {
         self.with_concentrated_liquidity(ClFactorySpec::slipstream(factory))
+    }
+
+    /// Add a Curve discovery source (`MetaRegistry` and/or NG factories).
+    #[cfg(feature = "curve")]
+    pub fn with_curve(mut self, config: CurveDiscoveryConfig) -> Self {
+        self.curve.push(config);
+        self
     }
 
     /// Add a Solidly V2 fork (Aerodrome / Velodrome V2) by its
