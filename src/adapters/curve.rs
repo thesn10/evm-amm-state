@@ -631,6 +631,10 @@ struct CurveColdStartPlanner {
     code_seed: Option<Bytes>,
     policy: ColdStartPolicy,
     phase: CurvePhase,
+    /// External helper accounts touched by `get_dy` (e.g. StableSwap-NG and
+    /// Tricrypto-NG `MATH` / views contracts), persisted into
+    /// `pool.state_addresses` so background cold-start commits declare them.
+    discovered_accounts: Vec<Address>,
     /// The pool slots being warmed: discovered in round 1 (discover→verify) or
     /// pre-populated from the known read-set (verify-only), then verified.
     verified_slots: Vec<(Address, U256)>,
@@ -673,6 +677,7 @@ impl CurveColdStartPlanner {
             code_seed,
             policy,
             phase,
+            discovered_accounts: Vec::new(),
             verified_slots,
             changed_slots: Vec::new(),
             repair: None,
@@ -753,6 +758,21 @@ impl AdapterColdStartPlanner for CurveColdStartPlanner {
                     return ColdStartStep::Done;
                 }
 
+                // Capture external helper contracts touched by `get_dy` (such as
+                // StableSwap-NG / Tricrypto-NG `MATH` contracts) so `finish`
+                // declares them in `pool.state_addresses` for background
+                // cold-start ownership checks and offline quoting.
+                let mut accounts: Vec<Address> = call
+                    .access
+                    .accounts
+                    .iter()
+                    .copied()
+                    .filter(|address| !address.is_zero())
+                    .collect();
+                accounts.sort_unstable();
+                accounts.dedup();
+                self.discovered_accounts = accounts.clone();
+
                 // Collect the discovered pool slots (already restricted to the
                 // pool). The access list is a set, so order is unspecified.
                 let discovered: Vec<(Address, U256)> = call
@@ -774,6 +794,7 @@ impl AdapterColdStartPlanner for CurveColdStartPlanner {
                 self.verified_slots = discovered.clone();
                 self.phase = CurvePhase::Verify;
                 ColdStartStep::Continue(ColdStartPlan {
+                    accounts,
                     verify: discovered,
                     ..Default::default()
                 })
@@ -858,6 +879,11 @@ impl AdapterColdStartPlanner for CurveColdStartPlanner {
                     self.verified_slots.iter().map(|(_, slot)| *slot).collect();
                 discovered_slots.sort_unstable();
                 discovered_slots.dedup();
+                for account in &self.discovered_accounts {
+                    if !pool.state_addresses.contains(account) {
+                        pool.state_addresses.push(*account);
+                    }
+                }
                 pool.metadata = ProtocolMetadata::Curve(CurveMetadata {
                     coins: self.coins.clone(),
                     discovered_slots,
