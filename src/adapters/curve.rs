@@ -731,7 +731,7 @@ impl AdapterColdStartPlanner for CurveColdStartPlanner {
                 from: Address::ZERO,
                 to: self.pool,
                 calldata,
-                restrict_to: Some(vec![self.pool]),
+                restrict_to: None,
             }],
             ..Default::default()
         }
