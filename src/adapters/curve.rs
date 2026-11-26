@@ -298,6 +298,13 @@ impl AmmAdapter for CurveAdapter {
                 .iter()
                 .copied()
                 .map(|slot| StateSlot::new(address, slot))
+                .chain(
+                    metadata
+                        .external_slots
+                        .iter()
+                        .copied()
+                        .map(|(ext_addr, slot)| StateSlot::new(ext_addr, slot)),
+                )
                 .collect(),
             _ => Vec::new(),
         };
@@ -881,6 +888,14 @@ impl AdapterColdStartPlanner for CurveColdStartPlanner {
                     .collect();
                 discovered_slots.sort_unstable();
                 discovered_slots.dedup();
+                let mut external_slots: Vec<(Address, U256)> = self
+                    .verified_slots
+                    .iter()
+                    .filter(|(address, _)| *address != self.pool)
+                    .copied()
+                    .collect();
+                external_slots.sort_unstable();
+                external_slots.dedup();
                 for account in &self.discovered_accounts {
                     if !pool.state_addresses.contains(account) {
                         pool.state_addresses.push(*account);
@@ -889,6 +904,7 @@ impl AdapterColdStartPlanner for CurveColdStartPlanner {
                 pool.metadata = ProtocolMetadata::Curve(CurveMetadata {
                     coins: self.coins.clone(),
                     discovered_slots,
+                    external_slots,
                     // Persist the config-supplied variant so the reactive path
                     // and later sims keep the correct `get_dy` / event ABI.
                     variant: self.variant,
