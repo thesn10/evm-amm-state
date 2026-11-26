@@ -559,10 +559,23 @@ impl AmmAdapter for ConcentratedLiquidityAdapter {
         };
 
         let transfer_success = Bytes::from_static(ERC20_TRANSFER_SUCCESS_RUNTIME);
-        let code_overrides = [
+        let mut code_overrides = vec![
             (token_in, transfer_success.clone()),
             (token_out, transfer_success),
         ];
+        // PancakeV3 pools with active CAKE farming invoke `lmPool.accumulateReward`
+        // and `lmPool.crossLmTick` during `swap()`. Both are void reward-accounting
+        // hooks that cannot affect `amountOut`; stubbing a non-zero `lmPool` with
+        // `STOP` keeps strict offline quotes self-contained without warming farm state.
+        if pool.protocol() == ProtocolId::PancakeV3
+            && let Some(pool_address) = pool.key.address()
+            && let Some(word) = cache.cached_storage(pool_address, PANCAKE_V3_LM_POOL_SLOT)
+        {
+            let lm_pool = Address::from_word(word.into());
+            if !lm_pool.is_zero() {
+                code_overrides.push((lm_pool, Bytes::from_static(&[0x00])));
+            }
+        }
         let output = quote_via_call_with_code_overrides_from(
             cache,
             config.from,
