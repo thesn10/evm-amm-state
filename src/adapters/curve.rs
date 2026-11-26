@@ -783,8 +783,7 @@ impl AdapterColdStartPlanner for CurveColdStartPlanner {
                 // Collect every slot touched by `get_dy` (the pool's own read-set
                 // plus any external helper/oracle slots in StableSwap-NG pools)
                 // in deterministic sorted order for reproducible verify batches.
-                let mut discovered: Vec<(Address, U256)> =
-                    call.access.slots.iter().copied().collect();
+                let mut discovered: Vec<(Address, U256)> = call.access.slots.to_vec();
                 discovered.sort_unstable();
                 discovered.dedup();
 
