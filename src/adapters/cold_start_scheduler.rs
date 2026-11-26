@@ -37,6 +37,7 @@ const PRIORITY_BURST_QUANTA: usize = 8;
 pub struct AmmColdStartOptions {
     class: AmmWorkClass,
     policy: ColdStartPolicy,
+    skip_existing: bool,
 }
 
 impl Default for AmmColdStartOptions {
@@ -44,6 +45,7 @@ impl Default for AmmColdStartOptions {
         Self {
             class: AmmWorkClass::Bootstrap,
             policy: ColdStartPolicy::Eager,
+            skip_existing: false,
         }
     }
 }
@@ -61,6 +63,13 @@ impl AmmColdStartOptions {
         self
     }
 
+    /// Skip duplicate, already-scheduled, or already-registered pools instead of failing the batch
+    /// with `PoolAlreadyScheduled`.
+    pub const fn with_skip_existing(mut self, skip_existing: bool) -> Self {
+        self.skip_existing = skip_existing;
+        self
+    }
+
     /// Scheduler service class.
     pub const fn class(self) -> AmmWorkClass {
         self.class
@@ -69,6 +78,11 @@ impl AmmColdStartOptions {
     /// Adapter cold-start policy.
     pub const fn policy(self) -> ColdStartPolicy {
         self.policy
+    }
+
+    /// Whether duplicate, pending, or already-registered pools are silently skipped.
+    pub const fn skip_existing(self) -> bool {
+        self.skip_existing
     }
 }
 
