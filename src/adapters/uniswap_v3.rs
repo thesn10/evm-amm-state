@@ -3055,14 +3055,28 @@ impl AdapterColdStartPlanner for UniswapV3ColdStartPlanner {
                             let observation_index =
                                 ((slot0 >> 184_usize) & U256::from(u16::MAX)).to::<u16>();
                             match self.exact_surface {
-                                V3ColdStartExactSurface::CanonicalUniswap => verify.push((
-                                    self.address,
-                                    U256::from(8) + U256::from(observation_index),
-                                )),
-                                V3ColdStartExactSurface::CanonicalPancake => verify.push((
-                                    self.address,
-                                    U256::from(9) + U256::from(observation_index),
-                                )),
+                                V3ColdStartExactSurface::CanonicalUniswap => {
+                                    verify.push((
+                                        self.address,
+                                        U256::from(8) + U256::from(observation_index),
+                                    ));
+                                    // `Oracle.write` SSTOREs to `indexUpdated` during a quote swap
+                                    // that moves the tick; EIP-2200/2929 reads its original value.
+                                    if let Some(next) = v3_next_observation_index(slot0) {
+                                        verify
+                                            .push((self.address, U256::from(8) + U256::from(next)));
+                                    }
+                                }
+                                V3ColdStartExactSurface::CanonicalPancake => {
+                                    verify.push((
+                                        self.address,
+                                        U256::from(9) + U256::from(observation_index),
+                                    ));
+                                    if let Some(next) = v3_next_observation_index(slot0) {
+                                        verify
+                                            .push((self.address, U256::from(9) + U256::from(next)));
+                                    }
+                                }
                                 V3ColdStartExactSurface::Slipstream(_) => {
                                     let observation_cardinality =
                                         ((slot0 >> 200_usize) & U256::from(u16::MAX)).to::<u16>();
@@ -3237,6 +3251,25 @@ fn record_v3_warmed_slots(
         }
         _ => {}
     }
+}
+
+/// Next observation ring index `Oracle.write` will write to on a swap that moves the tick
+/// (`(index + 1) % cardinalityUpdated`), when it differs from `observationIndex`.
+fn v3_next_observation_index(slot0: U256) -> Option<u16> {
+    let index = ((slot0 >> 184_usize) & U256::from(u16::MAX)).to::<u16>();
+    let cardinality = ((slot0 >> 200_usize) & U256::from(u16::MAX)).to::<u16>();
+    let cardinality_next = ((slot0 >> 216_usize) & U256::from(u16::MAX)).to::<u16>();
+    if cardinality == 0 {
+        return None;
+    }
+    let cardinality_updated =
+        if cardinality_next > cardinality && index == cardinality.saturating_sub(1) {
+            cardinality_next
+        } else {
+            cardinality
+        };
+    let next = ((u32::from(index) + 1) % u32::from(cardinality_updated)) as u16;
+    (next != index).then_some(next)
 }
 
 /// The shared gate for every canonical accounting transition: this pool must be
@@ -3938,5 +3971,102 @@ mod tests {
             .expect("quote with zero lmPool");
         assert_eq!(quote.amount_out, expected_out);
         assert_eq!(zero_cache.recorded_overrides.len(), 2);
+    }
+
+    #[test]
+    fn v3_cold_start_warms_next_observation_slot_for_oracle_write() {
+        let pack_slot0 = |index: u16, cardinality: u16, cardinality_next: u16| -> U256 {
+            (U256::from(1u64) << 96)
+                | (U256::from(index) << 184)
+                | (U256::from(cardinality) << 200)
+                | (U256::from(cardinality_next) << 216)
+        };
+
+        // Exact case: cardinalityNext grew past cardinality=1, so Oracle.write SSTOREs slot 0x9.
+        assert_eq!(v3_next_observation_index(pack_slot0(0, 1, 2)), Some(1));
+        // Ring wrap-around at index == cardinality - 1 without pending growth.
+        assert_eq!(v3_next_observation_index(pack_slot0(4, 5, 5)), Some(0));
+        // Single-slot ring writes back to slot 0x8 — no extra slot needed.
+        assert_eq!(v3_next_observation_index(pack_slot0(0, 1, 1)), None);
+
+        let adapter = ConcentratedLiquidityAdapter::default();
+
+        // Canonical Uniswap V3: index=0, cardinality=1, cardinalityNext=2 -> warms 0x8 and 0x9.
+        let uni_addr = Address::repeat_byte(0x88);
+        let uni_pool = PoolRegistration::new(PoolKey::UniswapV3(uni_addr)).with_metadata(
+            ProtocolMetadata::UniswapV3(
+                V3Metadata::default()
+                    .with_tick_spacing(10)
+                    .with_storage_layout(V3StorageLayout::uniswap(10)),
+            ),
+        );
+        let mut planner = adapter
+            .cold_start_planner(&uni_pool, ColdStartPolicy::Strict)
+            .expect("UniswapV3 planner");
+        let round1 = planner.initial_plan(&EmptyState);
+        let slot0 = pack_slot0(0, 1, 2);
+        let fetched = round1
+            .verify
+            .iter()
+            .map(|&(address, slot)| SlotOutcome {
+                address,
+                slot,
+                fetch: if slot == U256::ZERO {
+                    SlotFetch::Value(slot0)
+                } else {
+                    SlotFetch::Zero
+                },
+            })
+            .collect();
+        let ColdStartStep::Continue(round2) = planner.on_results(
+            &ColdStartResults {
+                fetched,
+                ..Default::default()
+            },
+            &EmptyState,
+        ) else {
+            panic!("expected Round 2 plan");
+        };
+        assert!(round2.verify.contains(&(uni_addr, U256::from(8))));
+        assert!(round2.verify.contains(&(uni_addr, U256::from(9))));
+
+        // Canonical Pancake V3: index=7, cardinality=10, cardinalityNext=10 -> warms 9+7 and 9+8.
+        let cake_addr = Address::repeat_byte(0x99);
+        let cake_pool = PoolRegistration::new(PoolKey::PancakeV3(cake_addr)).with_metadata(
+            ProtocolMetadata::PancakeV3(
+                V3Metadata::default()
+                    .with_tick_spacing(50)
+                    .with_storage_layout(V3StorageLayout::pancake(50)),
+            ),
+        );
+        let mut cake_planner = adapter
+            .cold_start_planner(&cake_pool, ColdStartPolicy::Strict)
+            .expect("PancakeV3 planner");
+        let cake_r1 = cake_planner.initial_plan(&EmptyState);
+        let cake_slot0 = pack_slot0(7, 10, 10);
+        let cake_fetched = cake_r1
+            .verify
+            .iter()
+            .map(|&(address, slot)| SlotOutcome {
+                address,
+                slot,
+                fetch: if slot == U256::ZERO {
+                    SlotFetch::Value(cake_slot0)
+                } else {
+                    SlotFetch::Zero
+                },
+            })
+            .collect();
+        let ColdStartStep::Continue(cake_r2) = cake_planner.on_results(
+            &ColdStartResults {
+                fetched: cake_fetched,
+                ..Default::default()
+            },
+            &EmptyState,
+        ) else {
+            panic!("expected Pancake Round 2 plan");
+        };
+        assert!(cake_r2.verify.contains(&(cake_addr, U256::from(9 + 7))));
+        assert!(cake_r2.verify.contains(&(cake_addr, U256::from(9 + 8))));
     }
 }
