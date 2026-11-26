@@ -4036,6 +4036,29 @@ impl AmmRuntimeActor {
             .cold_start_worker
             .clone()
             .ok_or(AmmRuntimeCommandError::ColdStartWorkerUnavailable)?;
+        let mut keys = BTreeSet::new();
+        let pools = if options.skip_existing() {
+            pools
+                .into_iter()
+                .filter(|pool| {
+                    keys.insert(pool.key.clone())
+                        && !self.pending_pool_work.contains_key(&pool.key)
+                        && self.engine.registry().pool(&pool.key).is_none()
+                })
+                .collect::<Vec<_>>()
+        } else {
+            for pool in &pools {
+                if !keys.insert(pool.key.clone())
+                    || self.pending_pool_work.contains_key(&pool.key)
+                    || self.engine.registry().pool(&pool.key).is_some()
+                {
+                    return Err(AmmRuntimeCommandError::PoolAlreadyScheduled(
+                        pool.key.clone(),
+                    ));
+                }
+            }
+            pools
+        };
         if pools.is_empty() {
             return Ok(Vec::new());
         }
@@ -4044,18 +4067,6 @@ impl AmmRuntimeActor {
             .checked_mul(2)
             .ok_or_else(|| RuntimeSequenceOverflow::new("AmmRuntimeEvent.sequence"))?;
         self.next_event_sequence(queue_events)?;
-
-        let mut keys = BTreeSet::new();
-        for pool in &pools {
-            if !keys.insert(pool.key.clone())
-                || self.pending_pool_work.contains_key(&pool.key)
-                || self.engine.registry().pool(&pool.key).is_some()
-            {
-                return Err(AmmRuntimeCommandError::PoolAlreadyScheduled(
-                    pool.key.clone(),
-                ));
-            }
-        }
 
         let mut next_work_id = self.next_work_id;
         let mut accepted = Vec::with_capacity(pools.len());
