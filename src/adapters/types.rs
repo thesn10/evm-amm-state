@@ -1765,6 +1765,11 @@ pub struct CurveMetadata {
     /// to skip discovery (a verify-only cold start) and enable the fast bundled
     /// hydration path.
     pub discovered_slots: Vec<U256>,
+    /// External storage slots touched by `get_dy` outside the pool itself
+    /// (for example, StableSwap-NG / Tricrypto-NG factory implementation slots
+    /// or rate-oracle cells). Declared in `state_dependencies` so background
+    /// cold-start commits accept them and offline quotes have them pre-warmed.
+    pub external_slots: Vec<(Address, U256)>,
     /// The pool dialect selecting the `get_dy` / `TokenExchange` index ABI.
     pub variant: CurveVariant,
     /// Optional caller-supplied canonical runtime bytecode for the pool, seeded

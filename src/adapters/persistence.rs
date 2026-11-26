@@ -810,6 +810,7 @@ impl TryFrom<PersistedRegistration> for PoolRegistration {
                 ProtocolMetadata::Curve(CurveMetadata {
                     coins,
                     discovered_slots,
+                    external_slots: Vec::new(),
                     variant: variant.into(),
                     code_seed: code_seed.map(Into::into),
                 })
