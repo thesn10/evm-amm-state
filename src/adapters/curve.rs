@@ -773,15 +773,13 @@ impl AdapterColdStartPlanner for CurveColdStartPlanner {
                 accounts.dedup();
                 self.discovered_accounts = accounts.clone();
 
-                // Collect the discovered pool slots (already restricted to the
-                // pool). The access list is a set, so order is unspecified.
-                let discovered: Vec<(Address, U256)> = call
-                    .access
-                    .slots
-                    .iter()
-                    .filter(|(address, _)| *address == self.pool)
-                    .copied()
-                    .collect();
+                // Collect every slot touched by `get_dy` (the pool's own read-set
+                // plus any external helper/oracle slots in StableSwap-NG pools)
+                // in deterministic sorted order for reproducible verify batches.
+                let mut discovered: Vec<(Address, U256)> =
+                    call.access.slots.iter().copied().collect();
+                discovered.sort_unstable();
+                discovered.dedup();
 
                 // Empty capture is a distinguishable signal: a verify round over
                 // zero slots would be a no-op, so record a repair and finish
@@ -875,8 +873,12 @@ impl AdapterColdStartPlanner for CurveColdStartPlanner {
                 // exactly them. The discovered set is order-unspecified; sort for
                 // a stable, deduped record. The config-supplied `coins` are
                 // preserved (static pool identity, required at simulate time).
-                let mut discovered_slots: Vec<U256> =
-                    self.verified_slots.iter().map(|(_, slot)| *slot).collect();
+                let mut discovered_slots: Vec<U256> = self
+                    .verified_slots
+                    .iter()
+                    .filter(|(address, _)| *address == self.pool)
+                    .map(|(_, slot)| *slot)
+                    .collect();
                 discovered_slots.sort_unstable();
                 discovered_slots.dedup();
                 for account in &self.discovered_accounts {
