@@ -982,7 +982,7 @@ dependencies = [
 [[package]]
 name = "alloy-transport-balancer"
 version = "0.3.0"
-source = "git+https://github.com/thesn10/alloy-transport-balancer?branch=main#0616cd470ad3abc73ddc71f4d0c516f962795fad"
+source = "git+https://github.com/thesn10/alloy-transport-balancer?branch=main#08a4dee393661386d14936d11c6b15d8f84d58d7"
 dependencies = [
  "alloy-json-rpc 1.6.3",
  "alloy-json-rpc 2.6.1",
@@ -2528,7 +2528,7 @@ dependencies = [
 [[package]]
 name = "evm-fork-cache"
 version = "0.4.2-alpha.1"
-source = "git+https://github.com/thesn10/evm-fork-cache?branch=main#4d3c1cae00b0a0c36f2eec0b954d7bf67eac9878"
+source = "git+https://github.com/thesn10/evm-fork-cache?branch=main#49c2dd8cbb2ee34412a7703b6a96f9412d36ac58"
 dependencies = [
  "alloy-consensus 1.6.3",
  "alloy-consensus 2.4.2",
