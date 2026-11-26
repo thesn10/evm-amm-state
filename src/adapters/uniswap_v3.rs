@@ -34,8 +34,8 @@ use super::{
     V3TransitionError,
 };
 use crate::adapters::storage::{
-    AERO_CL_TRANSITION_GLOBAL_SLOTS, SLIPSTREAM_TRANSITION_GLOBAL_SLOTS, SlipstreamLayoutFamily,
-    V3StorageLayout, layout_for, slipstream_tick_info_storage_keys_with_base,
+    AERO_CL_TRANSITION_GLOBAL_SLOTS, PANCAKE_V3_LM_POOL_SLOT, SLIPSTREAM_TRANSITION_GLOBAL_SLOTS,
+    SlipstreamLayoutFamily, V3StorageLayout, layout_for, slipstream_tick_info_storage_keys_with_base,
     v3_tick_bitmap_storage_key_with_base, v3_tick_info_storage_keys_with_base, v3_word_position,
 };
 use alloy_primitives::{
@@ -256,6 +256,10 @@ impl AmmAdapter for ConcentratedLiquidityAdapter {
             && layout == V3StorageLayout::uniswap(layout.tick_spacing)
         {
             V3ColdStartExactSurface::CanonicalUniswap
+        } else if pool.protocol() == ProtocolId::PancakeV3
+            && layout == V3StorageLayout::pancake(layout.tick_spacing)
+        {
+            V3ColdStartExactSurface::CanonicalPancake
         } else if pool.protocol() == ProtocolId::Slipstream
             && let Some(family) = layout.slipstream_family()
         {
@@ -2857,6 +2861,7 @@ enum V3Phase {
 enum V3ColdStartExactSurface {
     None,
     CanonicalUniswap,
+    CanonicalPancake,
     Slipstream(SlipstreamLayoutFamily),
 }
 
@@ -2939,6 +2944,13 @@ impl AdapterColdStartPlanner for UniswapV3ColdStartPlanner {
                 (self.address, U256::from(1)),
                 (self.address, U256::from(2)),
                 (self.address, U256::from(3)),
+            ]),
+            V3ColdStartExactSurface::CanonicalPancake => verify.extend([
+                (self.address, U256::from(1)),
+                (self.address, U256::from(2)),
+                (self.address, U256::from(3)),
+                (self.address, U256::from(4)),
+                (self.address, PANCAKE_V3_LM_POOL_SLOT),
             ]),
             V3ColdStartExactSurface::Slipstream(SlipstreamLayoutFamily::Legacy) => verify.extend(
                 SLIPSTREAM_TRANSITION_GLOBAL_SLOTS.map(|slot| (self.address, U256::from(slot))),
@@ -3033,6 +3045,10 @@ impl AdapterColdStartPlanner for UniswapV3ColdStartPlanner {
                                 V3ColdStartExactSurface::CanonicalUniswap => verify.push((
                                     self.address,
                                     U256::from(8) + U256::from(observation_index),
+                                )),
+                                V3ColdStartExactSurface::CanonicalPancake => verify.push((
+                                    self.address,
+                                    U256::from(9) + U256::from(observation_index),
                                 )),
                                 V3ColdStartExactSurface::Slipstream(_) => {
                                     let observation_cardinality =

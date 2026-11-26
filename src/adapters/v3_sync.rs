@@ -64,9 +64,10 @@ use evm_fork_cache::bulk_storage::{StorageProgram, run_storage_program};
 use evm_fork_cache::cache::EvmCache;
 
 use super::storage::{
-    AERO_CL_OBSERVATIONS_SLOT, AERO_CL_TRANSITION_GLOBAL_SLOTS, SLIPSTREAM_OBSERVATIONS_SLOT,
-    SLIPSTREAM_TRANSITION_GLOBAL_SLOTS, SlipstreamLayoutFamily, V3StorageLayout,
-    v3_tick_bitmap_storage_key_with_base, v3_tick_info_storage_keys_with_base, v3_word_position,
+    AERO_CL_OBSERVATIONS_SLOT, AERO_CL_TRANSITION_GLOBAL_SLOTS, PANCAKE_V3_LM_POOL_SLOT,
+    SLIPSTREAM_OBSERVATIONS_SLOT, SLIPSTREAM_TRANSITION_GLOBAL_SLOTS, SlipstreamLayoutFamily,
+    V3StorageLayout, v3_tick_bitmap_storage_key_with_base, v3_tick_info_storage_keys_with_base,
+    v3_word_position,
 };
 
 /// The minimum/maximum tick a V3 pool can reach (`±887272`).
@@ -236,6 +237,7 @@ impl V3SyncSpec {
                 U256::from(PANCAKE_FEE_GROWTH_1_SLOT),
                 U256::from(PANCAKE_PROTOCOL_FEES_SLOT),
                 layout.liquidity_slot,
+                PANCAKE_V3_LM_POOL_SLOT,
             ],
             observations: Some(V3ObservationsSpec {
                 array_slot: U256::from(PANCAKE_OBSERVATIONS_SLOT),
@@ -1248,12 +1250,28 @@ mod tests {
     }
 
     #[test]
+    fn pancake_spec_warms_slot0_extension_globals_and_lm_pool() {
+        let spec = V3SyncSpec::pancake(V3StorageLayout::pancake(50));
+        for slot in [0u64, 1, 2, 3, 4, 5, 65_544] {
+            assert!(
+                spec.static_slots.contains(&U256::from(slot)),
+                "missing PancakeV3 static slot {slot:#x}"
+            );
+        }
+        assert_eq!(
+            spec.observations.map(|o| o.array_slot),
+            Some(U256::from(PANCAKE_OBSERVATIONS_SLOT))
+        );
+    }
+
+    #[test]
     fn generated_programs_are_push0_free_and_bounded() {
         // The programs must stay portable to pre-Shanghai V3 chains (no
         // PUSH0) and comfortably below any code-size concern; the opcode
         // walk also proves no PUSH immediate runs off the end of the code.
         for spec in [
             spacing10_spec(),
+            V3SyncSpec::pancake(V3StorageLayout::pancake(50)),
             V3SyncSpec::core(V3StorageLayout::pancake(60)),
         ] {
             let full = build_full_sync_program(&spec);
