@@ -6164,6 +6164,7 @@ impl AmmRuntimeActor {
     ) -> Result<(), AmmRuntimeCommandError> {
         let mut declared = BTreeMap::new();
         let mut verified_targets = BTreeSet::new();
+        let mut associated_targets = BTreeSet::new();
         let mut owners = BTreeMap::new();
         for pool in pools {
             let adapter = self.engine.registry().adapter(pool.protocol()).ok_or(
@@ -6182,13 +6183,22 @@ impl AmmRuntimeActor {
                 verified_targets.insert(address);
                 owners.insert(address, pool.key.clone());
             }
+            for &address in adapter.state_dependencies(pool).associated_addresses() {
+                associated_targets.insert(address);
+            }
+            for &address in &pool.state_addresses {
+                associated_targets.insert(address);
+            }
         }
         let mut provided = BTreeSet::new();
         if let Some(accounts) = prepared_accounts {
             for value in accounts.values() {
                 let address = value.address();
                 let expected = declared.get(&address);
-                if expected.is_none() && !verified_targets.contains(&address) {
+                if expected.is_none()
+                    && !verified_targets.contains(&address)
+                    && !associated_targets.contains(&address)
+                {
                     return Err(AmmRuntimeCommandError::UnexpectedPreparedAccount { address });
                 }
                 let actual = alloy_primitives::keccak256(value.code());
