@@ -395,6 +395,36 @@ impl AmmAdapter for CurveAdapter {
         }
     }
 
+    fn verified_code_targets(&self, pool: &PoolRegistration) -> Vec<Address> {
+        let Some(pool_address) = pool.key.address() else {
+            return Vec::new();
+        };
+        let mut targets: Vec<Address> = pool
+            .state_addresses
+            .iter()
+            .copied()
+            .filter(|addr| !addr.is_zero() && *addr != pool_address)
+            .collect();
+        targets.sort_unstable();
+        targets.dedup();
+        targets
+    }
+
+    fn verified_storage_targets(&self, pool: &PoolRegistration) -> Vec<(Address, U256)> {
+        let ProtocolMetadata::Curve(metadata) = &pool.metadata else {
+            return Vec::new();
+        };
+        let mut targets: Vec<(Address, U256)> = metadata
+            .external_slots
+            .iter()
+            .copied()
+            .filter(|(addr, _)| !addr.is_zero())
+            .collect();
+        targets.sort_unstable();
+        targets.dedup();
+        targets
+    }
+
     fn decode_event(
         &self,
         pool: &PoolRegistration,
@@ -731,13 +761,12 @@ impl CurveColdStartPlanner {
 impl AdapterColdStartPlanner for CurveColdStartPlanner {
     fn initial_plan(&mut self, _state: &dyn StateView) -> ColdStartPlan {
         // Verify-only fast path: the read-set is already known (pre-populated in
-        // `new`), so skip discovery and warm the known pool + external slots (and
-        // any external helper accounts) in a single verify round. `on_results`
-        // lands directly in its `Verify` branch, and `finish` persists the same
-        // read-set.
+        // `new`), so skip discovery and warm the known pool + external slots in
+        // a single verify round. External helper accounts are declared via
+        // `CurveAdapter::verified_code_targets` (and the pool's own bytecode via
+        // `code_seeds`), so no `Accounts` phase is needed here.
         if matches!(self.phase, CurvePhase::Verify) {
             return ColdStartPlan {
-                accounts: self.discovered_accounts.clone(),
                 verify: self.verified_slots.clone(),
                 ..Default::default()
             };
@@ -1213,7 +1242,15 @@ mod tests {
         let plan = planner.initial_plan(&EmptyView);
 
         assert!(plan.discover.is_empty(), "verify-only skips discover");
-        assert_eq!(plan.accounts, vec![math, oracle]);
+        assert!(
+            plan.accounts.is_empty(),
+            "helper code is declared via verified_code_targets, not Accounts phase"
+        );
+        assert_eq!(adapter.verified_code_targets(&reg), vec![math, oracle]);
+        assert_eq!(
+            adapter.verified_storage_targets(&reg),
+            vec![(oracle, U256::from(5))]
+        );
         assert_eq!(
             plan.verify,
             vec![
