@@ -16,9 +16,11 @@ use std::time::{Duration, Instant};
 
 use evm_amm_state::alloy_consensus::Header as ConsensusHeader;
 #[cfg(feature = "alloy1")]
-use alloy_json_rpc::{RequestPacket, ResponsePacket};
+use alloy_json_rpc::{RequestPacket, Response, ResponsePacket, ResponsePayload, SerializedRequest};
 #[cfg(feature = "alloy2")]
-use alloy2_json_rpc::{RequestPacket, ResponsePacket};
+use alloy2_json_rpc::{
+    RequestPacket, Response, ResponsePacket, ResponsePayload, SerializedRequest,
+};
 use evm_amm_state::alloy_network::Ethereum;
 use alloy_primitives::{Address, B256, Bytes, Log as PrimitiveLog, U256, hex, keccak256};
 use evm_amm_state::alloy_provider::{ProviderBuilder, RootProvider, network::AnyNetwork};
@@ -4719,8 +4721,8 @@ async fn curve_verify_only_fast_path_hydrates_external_slots_and_commits_ready()
                 U256::from(1212),
             ]);
             let account_fields_reply = encoded_words([
-                U256::from_be_bytes(helper_code_hash.0),
                 U256::ZERO,
+                U256::from_be_bytes(helper_code_hash.0),
             ]);
             let helper_proof = EIP1186AccountProofResponse {
                 address: helper,
@@ -4758,7 +4760,7 @@ async fn curve_verify_only_fast_path_hydrates_external_slots_and_commits_ready()
                 fn call(&mut self, req: RequestPacket) -> Self::Future {
                     let this = self.clone();
                     Box::pin(async move {
-                        let handle_single = |single: alloy_json_rpc::SerializedRequest| -> std::result::Result<alloy_json_rpc::Response, TransportError> {
+                        let handle_single = |single: SerializedRequest| -> std::result::Result<Response, TransportError> {
                             let id = single.id().clone();
                             let method = single.method().to_owned();
                             let params = single
@@ -4809,9 +4811,9 @@ async fn curve_verify_only_fast_path_hydrates_external_slots_and_commits_ready()
                             };
                             let raw = serde_json::value::RawValue::from_string(payload.to_string())
                                 .expect("valid json");
-                            Ok(alloy_json_rpc::Response {
+                            Ok(Response {
                                 id,
-                                payload: alloy_json_rpc::ResponsePayload::Success(raw),
+                                payload: ResponsePayload::Success(raw),
                             })
                         };
                         match req {
