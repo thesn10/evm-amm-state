@@ -772,39 +772,45 @@ impl AdapterColdStartPlanner for CurveColdStartPlanner {
             };
         }
 
-        // Round 1: ensure the pool's code, then run `get_dy(0, 1, DISCOVER_DX)`
-        // and capture the slots it touches (restricted to the pool so only its
-        // own read-set is collected — plain pools are self-contained). The
-        // discover calldata MUST use the variant's `get_dy` ABI: a CryptoSwap
-        // pool reverts the int128 `get_dy`, which would mis-classify as a
-        // spurious DiscoverFailed.
-        let calldata = match self.variant {
-            CurveVariant::StableSwap => Bytes::from(
-                get_dyCall {
-                    i: 0i128,
-                    j: 1i128,
-                    dx: DISCOVER_DX,
+        // Round 1: ensure the pool's code, then probe `get_dy` across every coin
+        // index so 3-/4-coin pools (e.g. Tricrypto-NG) capture all coin-specific
+        // balances/price_scale slots in one round, plus the reverse (1, 0) direction.
+        let n_coins = self.coins.len().max(2);
+        let pairs = (1..n_coins)
+            .map(|j| (0usize, j))
+            .chain(std::iter::once((1usize, 0usize)));
+        let discover = pairs
+            .map(|(i, j)| {
+                let calldata = match self.variant {
+                    CurveVariant::StableSwap => Bytes::from(
+                        get_dyCall {
+                            i: i as i128,
+                            j: j as i128,
+                            dx: DISCOVER_DX,
+                        }
+                        .abi_encode(),
+                    ),
+                    // CryptoSwap v2 and Tricrypto-NG share the uint256 get_dy ABI.
+                    CurveVariant::CryptoSwap | CurveVariant::CryptoSwapNG => Bytes::from(
+                        super::sim::CurveCryptoSwap::get_dyCall {
+                            i: U256::from(i),
+                            j: U256::from(j),
+                            dx: DISCOVER_DX,
+                        }
+                        .abi_encode(),
+                    ),
+                };
+                ColdStartCall {
+                    from: Address::ZERO,
+                    to: self.pool,
+                    calldata,
+                    restrict_to: None,
                 }
-                .abi_encode(),
-            ),
-            // CryptoSwap v2 and Tricrypto-NG share the uint256 get_dy ABI.
-            CurveVariant::CryptoSwap | CurveVariant::CryptoSwapNG => Bytes::from(
-                super::sim::CurveCryptoSwap::get_dyCall {
-                    i: U256::ZERO,
-                    j: U256::from(1),
-                    dx: DISCOVER_DX,
-                }
-                .abi_encode(),
-            ),
-        };
+            })
+            .collect();
         ColdStartPlan {
             accounts: vec![self.pool],
-            discover: vec![ColdStartCall {
-                from: Address::ZERO,
-                to: self.pool,
-                calldata,
-                restrict_to: None,
-            }],
+            discover,
             ..Default::default()
         }
     }
@@ -815,40 +821,38 @@ impl AdapterColdStartPlanner for CurveColdStartPlanner {
 
         match self.phase {
             CurvePhase::Discover => {
-                let Some(call) = results.discovered.first() else {
-                    // No discover result at all — treat as a failed discovery.
-                    self.repair = Some(CurveRepair::DiscoverFailed);
-                    return ColdStartStep::Done;
-                };
-
-                // Classify off the load-bearing success signal first (mirroring
-                // the Balancer / V2 / V3 planners): a revert/halt, or a success
-                // with no output, is a failed discovery — never silently driven
-                // to Ready over an empty read-set.
-                if !call.result.is_success() || call.result.output().is_none() {
+                // Collect results from all successful discover probes (e.g. `(0, 1)`,
+                // `(0, 2)`, `(1, 0)`). A pool fails discovery only if none succeeded.
+                let successful: Vec<_> = results
+                    .discovered
+                    .iter()
+                    .filter(|call| call.result.is_success() && call.result.output().is_some())
+                    .collect();
+                if successful.is_empty() {
                     self.repair = Some(CurveRepair::DiscoverFailed);
                     return ColdStartStep::Done;
                 }
 
-                // Capture external helper contracts touched by `get_dy` (such as
-                // StableSwap-NG / Tricrypto-NG `MATH` contracts) so `finish`
+                // Capture external helper contracts touched by any `get_dy` probe (such
+                // as StableSwap-NG / Tricrypto-NG `MATH` contracts) so `finish`
                 // declares them in `pool.state_addresses` for background
                 // cold-start ownership checks and offline quoting.
-                let mut accounts: Vec<Address> = call
-                    .access
-                    .accounts
+                let mut accounts: Vec<Address> = successful
                     .iter()
-                    .copied()
+                    .flat_map(|call| call.access.accounts.iter().copied())
                     .filter(|address| !address.is_zero())
                     .collect();
                 accounts.sort_unstable();
                 accounts.dedup();
                 self.discovered_accounts = accounts.clone();
 
-                // Collect every slot touched by `get_dy` (the pool's own read-set
-                // plus any external helper/oracle slots in StableSwap-NG pools)
-                // in deterministic sorted order for reproducible verify batches.
-                let mut discovered: Vec<(Address, U256)> = call.access.slots.to_vec();
+                // Collect every slot touched by any `get_dy` probe (the pool's own
+                // read-set plus any external helper/oracle slots) in deterministic
+                // sorted order for reproducible verify batches.
+                let mut discovered: Vec<(Address, U256)> = successful
+                    .iter()
+                    .flat_map(|call| call.access.slots.iter().copied())
+                    .collect();
                 discovered.sort_unstable();
                 discovered.dedup();
 
@@ -1259,5 +1263,97 @@ mod tests {
                 (oracle, U256::from(5)),
             ]
         );
+    }
+
+    #[test]
+    fn discover_probes_all_coin_pairs_and_unions_slots() {
+        use crate::adapters::CallOutcome;
+        use crate::adapters::cold_start::{
+            ColdStartCallResult, ColdStartResults, ColdStartStep, StorageAccessList,
+        };
+
+        struct EmptyView;
+        impl StateView for EmptyView {
+            fn storage(&self, _: Address, _: U256) -> Option<U256> {
+                None
+            }
+        }
+
+        let pool = Address::repeat_byte(0xf5);
+        let helper = Address::repeat_byte(0xee);
+        let adapter = CurveAdapter::default();
+
+        let meta = CurveMetadata::default()
+            .with_coins([
+                Address::repeat_byte(0x01),
+                Address::repeat_byte(0x02),
+                Address::repeat_byte(0x03),
+            ])
+            .with_variant(CurveVariant::CryptoSwapNG);
+        let reg = PoolRegistration::new(crate::adapters::PoolKey::Curve(pool))
+            .with_metadata(ProtocolMetadata::Curve(meta));
+
+        let mut planner = adapter
+            .cold_start_planner(&reg, ColdStartPolicy::Eager)
+            .expect("planner created");
+        let plan = planner.initial_plan(&EmptyView);
+
+        // A 3-coin pool must probe (0, 1), (0, 2), and (1, 0) in round 1 so slots belonging
+        // to coin 2 (e.g. Tricrypto slots 0x7 / 0x8) are captured during discovery.
+        assert_eq!(plan.discover.len(), 3);
+
+        let results = ColdStartResults {
+            discovered: vec![
+                ColdStartCallResult::new(
+                    CallOutcome::Success {
+                        output: Bytes::from(vec![0u8; 32]),
+                        gas_used: 0,
+                    },
+                    StorageAccessList {
+                        accounts: vec![pool],
+                        slots: vec![(pool, U256::from(1)), (pool, U256::from(2))],
+                        ..Default::default()
+                    },
+                ),
+                ColdStartCallResult::new(
+                    CallOutcome::Success {
+                        output: Bytes::from(vec![0u8; 32]),
+                        gas_used: 0,
+                    },
+                    StorageAccessList {
+                        accounts: vec![pool, helper],
+                        slots: vec![(pool, U256::from(7)), (pool, U256::from(8))],
+                        ..Default::default()
+                    },
+                ),
+                ColdStartCallResult::new(
+                    CallOutcome::Success {
+                        output: Bytes::from(vec![0u8; 32]),
+                        gas_used: 0,
+                    },
+                    StorageAccessList {
+                        accounts: vec![pool],
+                        slots: vec![(pool, U256::from(1)), (pool, U256::from(9))],
+                        ..Default::default()
+                    },
+                ),
+            ],
+            ..Default::default()
+        };
+
+        let ColdStartStep::Continue(next) = planner.on_results(&results, &EmptyView) else {
+            panic!("expected Verify step");
+        };
+        assert_eq!(
+            next.verify,
+            vec![
+                (pool, U256::from(1)),
+                (pool, U256::from(2)),
+                (pool, U256::from(7)),
+                (pool, U256::from(8)),
+                (pool, U256::from(9)),
+            ]
+        );
+        assert_eq!(next.accounts, vec![helper, pool]);
     }
 }
