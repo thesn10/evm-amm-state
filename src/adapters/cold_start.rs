@@ -1676,6 +1676,13 @@ where
         captured_accounts.push(PreparedAccountValue::new(address, proof, bytes));
     }
 
+    let captured_set: HashSet<Address> = captured_accounts.iter().map(|a| a.address()).collect();
+    for call in &mut discovered {
+        call.access
+            .accounts
+            .retain(|address| captured_set.contains(address));
+    }
+
     Ok(DiscoverRoundOutput {
         discovered,
         accounts: captured_accounts,
