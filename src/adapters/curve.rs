@@ -336,21 +336,36 @@ impl AmmAdapter for CurveAdapter {
         // non-empty `discovered_slots` means the read-set is already known (a
         // prior discovery / trace / registry), so the planner runs a verify-only
         // fast path instead of rediscovering — see [`CurveColdStartPlanner`].
-        let (coins, variant, known_slots, code_seed) = match &pool.metadata {
+        let (coins, variant, known_slots, known_external_slots, code_seed) = match &pool.metadata {
             ProtocolMetadata::Curve(metadata) => (
                 metadata.coins.clone(),
                 metadata.variant,
                 metadata.discovered_slots.clone(),
+                metadata.external_slots.clone(),
                 metadata.code_seed.clone(),
             ),
-            _ => (Vec::new(), CurveVariant::StableSwap, Vec::new(), None),
+            _ => (
+                Vec::new(),
+                CurveVariant::StableSwap,
+                Vec::new(),
+                Vec::new(),
+                None,
+            ),
         };
+        let known_accounts: Vec<Address> = pool
+            .state_addresses
+            .iter()
+            .copied()
+            .filter(|addr| !addr.is_zero() && *addr != address)
+            .collect();
 
         Ok(Box::new(CurveColdStartPlanner::new(
             address,
             coins,
             variant,
             known_slots,
+            known_external_slots,
+            known_accounts,
             code_seed,
             policy,
         )))
@@ -653,29 +668,50 @@ struct CurveColdStartPlanner {
 }
 
 impl CurveColdStartPlanner {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         pool: Address,
         coins: Vec<Address>,
         variant: CurveVariant,
         known_slots: Vec<U256>,
+        known_external_slots: Vec<(Address, U256)>,
+        known_accounts: Vec<Address>,
         code_seed: Option<Bytes>,
         policy: ColdStartPolicy,
     ) -> Self {
         // A pre-populated read-set selects the verify-only fast path: start in
-        // `Verify` with the known slots as the read-set, so `initial_plan` emits
-        // a single verify round (no discover call) and `finish` persists them.
-        // Sort + dedup for a stable, minimal fetch set. An empty read-set keeps
-        // the discover→verify default (byte-for-byte unchanged from before).
-        let mut slots = known_slots;
-        slots.sort_unstable();
-        slots.dedup();
-        let (phase, verified_slots) = if slots.is_empty() {
+        // `Verify` with the known pool + external slots as the read-set (and any
+        // external helper accounts such as StableSwap-NG `MATH`/oracle contracts),
+        // so `initial_plan` emits a single verify round (no discover call) and
+        // `finish` persists them. An empty read-set keeps the discover→verify default.
+        let mut verified_slots: Vec<(Address, U256)> = known_slots
+            .into_iter()
+            .map(|slot| (pool, slot))
+            .chain(
+                known_external_slots
+                    .into_iter()
+                    .filter(|(addr, _)| !addr.is_zero()),
+            )
+            .collect();
+        verified_slots.sort_unstable();
+        verified_slots.dedup();
+
+        let (phase, discovered_accounts) = if verified_slots.is_empty() {
             (CurvePhase::Discover, Vec::new())
         } else {
-            (
-                CurvePhase::Verify,
-                slots.into_iter().map(|slot| (pool, slot)).collect(),
-            )
+            let mut accounts: Vec<Address> = known_accounts
+                .into_iter()
+                .chain(
+                    verified_slots
+                        .iter()
+                        .map(|(addr, _)| *addr)
+                        .filter(|addr| *addr != pool),
+                )
+                .filter(|addr| !addr.is_zero())
+                .collect();
+            accounts.sort_unstable();
+            accounts.dedup();
+            (CurvePhase::Verify, accounts)
         };
         Self {
             pool,
@@ -684,7 +720,7 @@ impl CurveColdStartPlanner {
             code_seed,
             policy,
             phase,
-            discovered_accounts: Vec::new(),
+            discovered_accounts,
             verified_slots,
             changed_slots: Vec::new(),
             repair: None,
@@ -695,13 +731,13 @@ impl CurveColdStartPlanner {
 impl AdapterColdStartPlanner for CurveColdStartPlanner {
     fn initial_plan(&mut self, _state: &dyn StateView) -> ColdStartPlan {
         // Verify-only fast path: the read-set is already known (pre-populated in
-        // `new`), so skip discovery — and the pool-account/bytecode fetch and
-        // cold-cache `get_dy` faulting it needs — and warm exactly those slots in
-        // a single verify round. `on_results` lands directly in its `Verify`
-        // branch, and `finish` persists the same set. A stale/incomplete read-set
-        // is safe: the first `simulate_swap` lazily faults anything missing.
+        // `new`), so skip discovery and warm the known pool + external slots (and
+        // any external helper accounts) in a single verify round. `on_results`
+        // lands directly in its `Verify` branch, and `finish` persists the same
+        // read-set.
         if matches!(self.phase, CurvePhase::Verify) {
             return ColdStartPlan {
+                accounts: self.discovered_accounts.clone(),
                 verify: self.verified_slots.clone(),
                 ..Default::default()
             };
@@ -1146,6 +1182,45 @@ mod tests {
         assert!(
             adapter.code_seeds(&empty).expect("never errors").is_empty(),
             "empty code_seed => no seeds"
+        );
+    }
+
+    #[test]
+    fn verify_only_fast_path_includes_external_slots_and_helper_accounts() {
+        struct EmptyView;
+        impl StateView for EmptyView {
+            fn storage(&self, _: Address, _: U256) -> Option<U256> {
+                None
+            }
+        }
+
+        let pool = Address::repeat_byte(0xaa);
+        let math = Address::repeat_byte(0xbb);
+        let oracle = Address::repeat_byte(0xcc);
+        let adapter = CurveAdapter::default();
+
+        let mut meta = CurveMetadata::default()
+            .with_coins([Address::repeat_byte(0x01), Address::repeat_byte(0x02)])
+            .with_discovered_slots([U256::from(2), U256::from(1)]);
+        meta.external_slots = vec![(oracle, U256::from(5))];
+        let reg = PoolRegistration::new(crate::adapters::PoolKey::Curve(pool))
+            .with_state_addresses([pool, math, oracle])
+            .with_metadata(ProtocolMetadata::Curve(meta));
+
+        let mut planner = adapter
+            .cold_start_planner(&reg, ColdStartPolicy::Eager)
+            .expect("planner created");
+        let plan = planner.initial_plan(&EmptyView);
+
+        assert!(plan.discover.is_empty(), "verify-only skips discover");
+        assert_eq!(plan.accounts, vec![math, oracle]);
+        assert_eq!(
+            plan.verify,
+            vec![
+                (pool, U256::from(1)),
+                (pool, U256::from(2)),
+                (oracle, U256::from(5)),
+            ]
         );
     }
 }
