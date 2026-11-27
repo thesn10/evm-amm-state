@@ -4672,3 +4672,236 @@ fn runtime_publications_and_handle_are_send_sync() {
     assert_send_sync::<evm_amm_state::adapters::AmmStateSnapshot>();
     assert_send_sync::<evm_amm_state::adapters::AmmStateCommit>();
 }
+
+#[cfg(feature = "curve")]
+#[tokio::test(flavor = "multi_thread")]
+async fn curve_verify_only_fast_path_hydrates_external_slots_and_commits_ready() -> Result<()> {
+    use evm_amm_state::adapters::{CurveAdapter, CurveMetadata, CurveVariant};
+
+    tokio::task::LocalSet::new()
+        .run_until(async {
+            let mut cache = setup_cache().await;
+            align_cache(&mut cache, 500);
+            let mut registry = AdapterRegistry::new();
+            registry.register_adapter(Arc::new(CurveAdapter::default()))?;
+            let runtime = AmmRuntime::spawn(
+                cache,
+                registry,
+                runtime_baseline(500),
+                AmmRuntimeConfig::default(),
+            )?;
+
+            let pool = Address::repeat_byte(0x4c);
+            let helper = Address::repeat_byte(0x7e);
+            let helper_code = Bytes::from_static(&[0x60, 0x00, 0x60, 0x00, 0xf3]);
+            let helper_code_hash = keccak256(&helper_code);
+            let coin0 = Address::repeat_byte(0xa0);
+            let coin1 = Address::repeat_byte(0xa1);
+            let mut metadata = CurveMetadata::default()
+                .with_coins(vec![coin0, coin1])
+                .with_variant(CurveVariant::StableSwap)
+                .with_discovered_slots([U256::from(1), U256::from(2)]);
+            metadata.external_slots = vec![
+                (helper, U256::from(10)),
+                (helper, U256::from(11)),
+                (helper, U256::from(12)),
+            ];
+            let registration = PoolRegistration::new(PoolKey::Curve(pool))
+                .with_state_addresses(vec![helper])
+                .with_metadata(ProtocolMetadata::Curve(metadata));
+
+            let pool_hex = hex::encode(pool.as_slice());
+            let helper_hex = hex::encode(helper.as_slice());
+            let pool_slots_reply = encoded_words([U256::from(101), U256::from(202)]);
+            let external_slots_reply = pack_slots_calldata(&[
+                U256::from(1010),
+                U256::from(1111),
+                U256::from(1212),
+            ]);
+            let account_fields_reply = encoded_words([
+                U256::from_be_bytes(helper_code_hash.0),
+                U256::ZERO,
+            ]);
+            let helper_proof = EIP1186AccountProofResponse {
+                address: helper,
+                balance: U256::ZERO,
+                code_hash: helper_code_hash,
+                nonce: 1,
+                storage_hash: B256::ZERO,
+                account_proof: Vec::new(),
+                storage_proof: Vec::new(),
+            };
+
+            #[derive(Clone)]
+            struct CurveFastPathTransport {
+                pool_hex: String,
+                helper_hex: String,
+                pool_slots_reply: Bytes,
+                external_slots_reply: Bytes,
+                account_fields_reply: Bytes,
+                helper_code: Bytes,
+                helper_proof: EIP1186AccountProofResponse,
+            }
+
+            impl Service<RequestPacket> for CurveFastPathTransport {
+                type Response = ResponsePacket;
+                type Error = TransportError;
+                type Future = TransportFut<'static>;
+
+                fn poll_ready(
+                    &mut self,
+                    _cx: &mut Context<'_>,
+                ) -> Poll<std::result::Result<(), Self::Error>> {
+                    Poll::Ready(Ok(()))
+                }
+
+                fn call(&mut self, req: RequestPacket) -> Self::Future {
+                    let this = self.clone();
+                    Box::pin(async move {
+                        let handle_single = |single: alloy_json_rpc::SerializedRequest| -> std::result::Result<alloy_json_rpc::Response, TransportError> {
+                            let id = single.id().clone();
+                            let method = single.method().to_owned();
+                            let params = single
+                                .params()
+                                .map(|raw| raw.get().to_ascii_lowercase())
+                                .unwrap_or_default();
+                            let payload = match method.as_str() {
+                                "eth_getCode" => serde_json::to_value(&this.helper_code).unwrap(),
+                                "eth_getProof" => serde_json::to_value(&this.helper_proof).unwrap(),
+                                "eth_getStorageAt" => {
+                                    let val = if params.contains(&this.pool_hex) {
+                                        if params.contains("\"0x1\"")
+                                            || params.contains("0000000000000000000000000000000000000000000000000000000000000001")
+                                        {
+                                            U256::from(101)
+                                        } else {
+                                            U256::from(202)
+                                        }
+                                    } else if params.contains("\"0xa\"")
+                                        || params.contains("000000000000000000000000000000000000000000000000000000000000000a")
+                                    {
+                                        U256::from(1010)
+                                    } else if params.contains("\"0xb\"")
+                                        || params.contains("000000000000000000000000000000000000000000000000000000000000000b")
+                                    {
+                                        U256::from(1111)
+                                    } else {
+                                        U256::from(1212)
+                                    };
+                                    serde_json::to_value(B256::from(val)).unwrap()
+                                }
+                                "eth_call" => {
+                                    if params.contains(&this.pool_hex) {
+                                        serde_json::to_value(&this.pool_slots_reply).unwrap()
+                                    } else if params.contains(&this.helper_hex)
+                                        && params.contains("000000000000000000000000000000000000000000000000000000000000000a")
+                                    {
+                                        serde_json::to_value(&this.external_slots_reply).unwrap()
+                                    } else {
+                                        serde_json::to_value(&this.account_fields_reply).unwrap()
+                                    }
+                                }
+                                other => {
+                                    return Err(TransportError::local_usage_str(Box::leak(
+                                        format!("unexpected method {other}").into_boxed_str(),
+                                    )));
+                                }
+                            };
+                            let raw = serde_json::value::RawValue::from_string(payload.to_string())
+                                .expect("valid json");
+                            Ok(alloy_json_rpc::Response {
+                                id,
+                                payload: alloy_json_rpc::ResponsePayload::Success(raw),
+                            })
+                        };
+                        match req {
+                            RequestPacket::Single(single) => {
+                                Ok(ResponsePacket::Single(handle_single(single)?))
+                            }
+                            RequestPacket::Batch(batch) => {
+                                let responses = batch
+                                    .into_iter()
+                                    .map(handle_single)
+                                    .collect::<std::result::Result<Vec<_>, _>>()?;
+                                Ok(ResponsePacket::Batch(responses))
+                            }
+                        }
+                    })
+                }
+            }
+
+            let transport = CurveFastPathTransport {
+                pool_hex,
+                helper_hex,
+                pool_slots_reply,
+                external_slots_reply,
+                account_fields_reply,
+                helper_code: helper_code.clone(),
+                helper_proof,
+            };
+            let provider = RootProvider::<AnyNetwork>::new(RpcClient::new(transport, true));
+            let _worker = runtime
+                .attach_cold_start_worker(provider, AmmColdStartWorkerConfig::default())
+                .await?;
+            let mut snapshots = runtime.subscribe_snapshots();
+            let mut observer = runtime.subscribe_events();
+
+            let queued = runtime
+                .queue_cold_start(vec![registration], AmmColdStartOptions::default())
+                .await?;
+            assert_eq!(queued.len(), 1);
+
+            let published = tokio::time::timeout(Duration::from_millis(500), async {
+                while snapshots.borrow().registry().pool_count() == 0 {
+                    snapshots.changed().await.expect("runtime remains alive");
+                }
+            })
+            .await;
+            if published.is_err() {
+                let mut seen = Vec::new();
+                while let Ok(Ok(event)) =
+                    tokio::time::timeout(Duration::from_millis(10), observer.next_event()).await
+                {
+                    seen.push(format!("{:?}", event.kind()));
+                }
+                anyhow::bail!("curve pool was not published; events: {seen:?}");
+            }
+
+            let snapshot = runtime.latest_snapshot();
+            let instance = snapshot
+                .registry()
+                .pool_instance(&PoolKey::Curve(pool))
+                .expect("curve pool published");
+            assert_eq!(
+                snapshot.registry().pool(instance).unwrap().status,
+                PoolStatus::Ready
+            );
+            assert_eq!(
+                snapshot.cache().storage_value(pool, U256::from(1)),
+                Some(U256::from(101))
+            );
+            assert_eq!(
+                snapshot.cache().storage_value(pool, U256::from(2)),
+                Some(U256::from(202))
+            );
+            assert_eq!(
+                snapshot.cache().storage_value(helper, U256::from(10)),
+                Some(U256::from(1010))
+            );
+            assert_eq!(
+                snapshot.cache().storage_value(helper, U256::from(11)),
+                Some(U256::from(1111))
+            );
+            assert_eq!(
+                snapshot.cache().storage_value(helper, U256::from(12)),
+                Some(U256::from(1212))
+            );
+            let helper_account = EvmOverlay::new(snapshot.cache_snapshot(), None)
+                .basic(helper)?
+                .expect("helper bytecode is published with the pool");
+            assert_eq!(helper_account.code_hash, helper_code_hash);
+            runtime.shutdown().await?;
+            Ok(())
+        })
+        .await
+}
